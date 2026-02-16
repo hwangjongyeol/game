@@ -1,0 +1,164 @@
+# 10. 진행 현황
+
+## 2026-02-16
+
+### 완료
+- 계정 소셜링크 스키마 불일치 수정
+  - `account_social_links` 타임스탬프를 `linked_at` 중심 정의에서 `created_at/updated_at`로 정합화
+  - `docs/sql/13_add_accounts_and_user_soft_delete.sql`에 기존 DB 보정 로직 추가
+  - 즉시 보정용 스크립트 `docs/sql/14_fix_account_social_links_timestamps.sql` 추가
+  - DB 문서(`docs/02-db-schema.md`, `docs/sql/01_init_schema.sql`)와 엔티티 기준 일치화
+- 아이템 마스터/몬스터 드랍 DB 구조 추가
+  - `item_masters`, `monster_drop_tables` 테이블 및 시드 SQL 추가
+  - `ItemService`를 하드코딩 맵 기반에서 아이템 마스터 조회 기반으로 전환
+  - 카탈로그/드랍테이블 조회 API 추가
+    - `GET /api/v1/items/catalog`
+    - `GET /api/v1/items/catalog/{itemId}`
+    - `GET /api/v1/items/drop-table/{monsterId}`
+- Admin FE/BE 기반 추가
+  - 백엔드 Admin API 도메인 추가 (`/api/v1/admin/**`)
+  - 관리 대상: 캐릭터, 능력치, 강제 장착, 아이템 마스터, 몬스터 마스터, 몬스터 드랍, 웨이브 설정
+  - 신규 테이블 SQL 추가: `docs/sql/16_add_admin_monster_wave_tables.sql`
+  - 별도 프론트 프로젝트 추가: `admin-frontend` (React + Vite)
+  - Admin 프론트 UI를 `MUI + React Admin` 기반으로 전환
+- 아이템 직업 제한 추가
+  - `item_masters.required_class_id` 컬럼 기반 장착 제한 검증 추가
+  - 직업 불일치 시 `ITEM_CLASS_RESTRICTED` 에러 반환
+  - 관련 SQL 추가: `docs/sql/17_alter_item_masters_add_required_class_id.sql`
+  - FE 장착 후보 목록도 직업 제한 기준으로 필터링하여 장착 버튼 노출 제거
+- 동료 시스템 1차 구현
+  - 신규 테이블/시드 SQL 추가: `docs/sql/18_add_companion_system.sql`
+  - 동료 API 추가: 마스터 조회/보유 조회/편성 보너스/뽑기/편성/합성
+  - 주인공 스탯 계산에 편성 동료 보너스 합산 반영
+  - HP/MP 업그레이드 재화를 Gem에서 Gold로 전환
+  - 게임 UI에 `동료 뽑기/동료 설정/동료 합성` 탭 추가
+  - 전투 씬에 편성 동료(최대 5) 시각화 반영
+- Admin 동료 관리 추가
+  - Admin API 추가: 동료 마스터 CRUD, 유저 동료 조회/수정
+  - Admin FE 리소스 추가: `동료 마스터`, `유저 동료`
+  - `monsterDrops`, `waves` 목록 필터 오류(`alwaysOn + defaultValue`) 수정
+- 동료 편성 UX 개선
+  - 동료 설정 탭을 체크박스 기반으로 변경(최대 5명)
+  - 체크된 동료는 `✅` 표시 및 목록 상단 정렬
+  - 체크 시 자동으로 빈 슬롯(1~5) 배정, 해제 시 슬롯 해제
+- 동료 편성 즉시 반영/음수 스탯 버그 수정
+  - Phaser 씬 런타임에 `activeCompanions` 업데이트 훅 추가(편성 즉시 시각 반영)
+  - 영웅 기본 스탯 계산에서 고정 오프셋(`-20/-10/-200/-80`) 제거
+  - 전투 엔티티 스탯/HP/MP에 하한 클램프 적용(음수 방지)
+- DB/문서 정리
+  - 최신 단일 스키마 파일 추가: `docs/sql/00_latest_schema.sql`
+  - SQL 가이드 문서 추가: `docs/sql/README.md`
+  - 문서 기준을 단일 스키마 파일로 통일 (`docs/README.md`, `docs/admin-workspace.md`, `docs/02-db-schema.md`, `docs/00-work-rules.md`)
+- Phaser 템플릿/라이브러리 적용
+  - Phaser 공식 React 템플릿 패턴 반영: `EventBus + StartGame(game/main.ts)`
+  - `GameContainer`에서 `StartGame` 사용하도록 전환
+  - `phaser3-rex-plugins` 설치 및 `config.ts` import 기반 고정 연결 완료
+  - `MainScene` HUD에 rexUI 라벨 렌더링 추가
+  - 번들 최적화: Vite `manualChunks` 적용(`vendor-phaser`, `vendor-rexui`, `vendor` 분리)
+
+## 2026-02-14
+
+### 완료
+- 모노레포 구조 전환
+  - `backend` (Spring Boot)
+  - `frontend` (React + Phaser)
+  - `docs` (공통 문서)
+- JPA 기반 API 전환
+- 던전1 전투 루프 구현
+  - 몬스터 3종 웨이브
+  - 클래스 3종 + 스킬트리
+  - 드롭/EXP/골드/랭킹 반영
+- 인벤토리 API 추가
+  - `POST /api/v1/items/loot`
+  - `GET /api/v1/items/{userId}`
+- 캐릭터 스탯 업그레이드 API 추가
+  - `GET /api/v1/characters/{userId}`
+  - `POST /api/v1/characters/upgrade`
+- 재화/업그레이드 UI 추가
+  - Gold/Gem 표시
+  - 공격/방어/HP/MP 업그레이드 버튼
+- 신규 유저 시작 재화 조정
+  - Gold 500, Gem 30
+- 던전 처치 보상에 Gem 획득 추가
+- DB 변경 SQL 추가
+  - `docs/sql/02_add_user_items.sql`
+  - `docs/sql/03_add_user_character_stats.sql`
+  - `docs/sql/04_add_daily_quest_progress.sql`
+- 데일리 퀘스트 추가
+  - 진행도 증가 API
+  - 보상 수령 API
+  - 프론트 퀘스트 패널
+- 자동전투 전환
+  - 스페이스바 수동 공격 제거
+  - 기본공격/스킬 자동 순환
+- 웨이브 진행 개선
+  - 웨이브 클리어 시 HP/MP 완전 회복
+  - 사망 시 현재 웨이브 유지
+  - 웨이브 선택 확인 모달 + 즉시 반영 애니메이션
+- 클래스 액티브 스킬 차별화
+  - Knight: 방어 관통
+  - Mage: 에코 추가타
+  - Ranger: 흡혈
+- 드롭 아이템 효과 적용
+  - 소모형(즉시 회복) + 패시브형(영구 스탯 상승) 동작
+- 장착 시스템 추가
+  - 인벤토리 탭 장착 UI(무기/방어구/장신구)
+  - 장착 아이템 실시간 전투 스탯 반영
+  - 신규 장착 아이템 드롭 추가(Flame Sword, Iron Helm, Hunter Ring, Guardian Charm)
+- 탭 전환 안정화
+  - 인벤토리 탭 이동 시 전투 씬 유지(초기화 방지)
+- 던전 비주얼 확장
+  - `frontend/public/dungeons`에 던전 배경 10종 추가 (SVG)
+  - 10웨이브마다 배경 교체, 100웨이브 단위 순환
+- 캐릭터/몬스터 캐릭터화
+  - 사각형/타원 단일 오브젝트에서 아바타형(머리/몸통/무기)으로 전환
+  - 자동 전투 시 타격 모션 추가
+- 아이템 시스템 API 확장
+  - `POST /api/v1/items/consume` (소모 아이템 사용)
+  - `GET /api/v1/items/equipment/{userId}`, `POST /api/v1/items/equipment` (장착 조회/변경)
+  - `user_equipment` 테이블 신규 추가
+- 장착 UI 분리
+  - 인벤토리 탭과 별도로 `장착` 탭 추가
+  - 장착/해제가 서버 상태와 동기화됨
+- 장착 프리셋/강화 추가
+  - 프리셋 저장/적용 API 및 UI 추가
+  - 장비 강화(골드 소모) API 및 UI 추가
+- 세트 효과 추가
+  - Fortress 2/3세트, Hunter 2세트 효과 적용
+- 장비 드롭 분리
+  - 일반 드롭과 장비 드롭 테이블 분리, 장비는 전투당 최대 1개
+- 캐릭터 이미지 리소스 적용
+  - `frontend/public/characters` 실제 SVG 캐릭터/몬스터 이미지 사용
+- 전투 난이도/군집 개선
+  - 웨이브당 다중 몬스터 출현(최소 2, 최대 6)
+  - 웨이브 내 연속 처치 구조(마지막 처치 시 웨이브 클리어)
+  - 웨이브 기반 몬스터 스탯 스케일링 강화(HP/ATK/DEF)
+  - 보조 몬스터 스프라이트 추가로 군집 전투 연출
+- 스탯 반영 동기화 보강
+  - 능력치 업그레이드 후 Phaser 씬에 `persistentStats` 즉시 반영
+  - 메인 패널에 장비/세트 포함 합산 스탯 표시 추가
+- 전투 UX 개선
+  - 웨이브 종료 시 HP/MP 풀회복 규칙 고정
+  - `Wave 고정` 토글 추가(클리어 후 같은 웨이브 반복)
+  - 전투 속도 버튼형 제어(`X1/X2/X3`) + 로컬 저장으로 재접속 유지
+- 능력치 업그레이드 배수 추가
+  - `X1/X10/X100` 반복 업그레이드 지원
+- 장비/프리셋 UX 및 데이터 모델 확장
+  - 장착 탭을 슬롯 기반(무기/방어구/장신구) 화면으로 재구성
+  - `user_items`에 아이템 품질/능력치 컬럼 추가(`quality`, `attack_bonus`, `defense_bonus`, `hp_bonus`, `mp_bonus`)
+  - 전투/합산 스탯 계산이 DB 아이템 능력치 기반으로 동작
+- 데일리 퀘스트 확장
+  - 단일 통합 퀘스트에서 10개 단일목표 퀘스트로 확장
+  - 개별 퀘스트 보상 수령 API 추가 (`claim-one`)
+  - UI 탭에 `퀘스트` 추가, 퀘스트 탭에서 목록/수령 전용 화면 제공
+- 탭별 노출 정리
+  - `게임` 탭 외에는 웨이브/재화/능력치 업그레이드 패널 숨김
+- 계정/캐릭터 구조 전환 연동
+  - 캐릭터 생성 시 `accountId` 기반 생성으로 FE API 연동 수정
+  - 계정 로그인/가입 UI 추가 후 계정별 캐릭터 목록 조회로 변경
+  - 플레이어 소프트 삭제/최대 5캐릭터 정책 문서 및 DB 반영
+
+### 다음 예정
+- 아이템 효과 서버 검증/영속화
+- 웨이브 선택 히스토리/즐겨찾기
+- 클래스별 액티브 이펙트(타격 애니메이션) 강화

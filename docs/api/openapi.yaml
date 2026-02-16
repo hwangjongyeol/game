@@ -1,0 +1,1495 @@
+openapi: 3.0.3
+info:
+  title: AutoGame API
+  version: 1.0.0
+  description: AutoGame backend API specification (Spring Boot)
+servers:
+  - url: http://localhost:8080
+    description: Local
+
+tags:
+  - name: Player
+  - name: Economy
+  - name: Reward
+  - name: Ranking
+  - name: Item
+  - name: Character
+  - name: DailyQuest
+  - name: Dungeon
+
+paths:
+  /api/v1/players:
+    post:
+      tags: [Player]
+      summary: Create player
+      operationId: createPlayer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlayerRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlayer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    get:
+      tags: [Player]
+      summary: Get players
+      operationId: getPlayers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlayerList'
+
+  /api/v1/players/{id}:
+    get:
+      tags: [Player]
+      summary: Get player by id
+      operationId: getPlayer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePlayer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/wallets/{userId}:
+    get:
+      tags: [Economy]
+      summary: Get wallet
+      operationId: getWallet
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWallet'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/economy/earn:
+    post:
+      tags: [Economy]
+      summary: Earn currency
+      operationId: earnCurrency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EarnCurrencyRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWallet'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/economy/spend:
+    post:
+      tags: [Economy]
+      summary: Spend currency
+      operationId: spendCurrency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpendCurrencyRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseWallet'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/rewards/offline/claim:
+    post:
+      tags: [Reward]
+      summary: Claim offline reward
+      operationId: claimOfflineReward
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfflineRewardClaimRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseOfflineRewardClaim'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/rankings:
+    get:
+      tags: [Ranking]
+      summary: Get top rankings
+      operationId: getRankings
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseRankingEntryList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/rankings/me:
+    get:
+      tags: [Ranking]
+      summary: Get my ranking
+      operationId: getMyRanking
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMyRanking'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/rankings/score:
+    post:
+      tags: [Ranking]
+      summary: Update ranking score
+      operationId: addRankingScore
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRankingScoreRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMyRanking'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/loot:
+    post:
+      tags: [Item]
+      summary: Save loot items
+      operationId: saveLootItems
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LootItemsRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserItemList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/{userId}:
+    get:
+      tags: [Item]
+      summary: Get user inventory
+      operationId: getUserItems
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserItemList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/catalog:
+    get:
+      tags: [Item]
+      summary: Get active item catalog
+      operationId: getItemCatalog
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseItemMasterList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/catalog/{itemId}:
+    get:
+      tags: [Item]
+      summary: Get item master by itemId
+      operationId: getItemMaster
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseItemMaster'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/drop-table/{monsterId}:
+    get:
+      tags: [Item]
+      summary: Get monster drop table
+      operationId: getMonsterDropTable
+      parameters:
+        - name: monsterId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseMonsterDropList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/consume:
+    post:
+      tags: [Item]
+      summary: Consume item
+      operationId: consumeItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumeItemRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserItemList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/equipment/{userId}:
+    get:
+      tags: [Item]
+      summary: Get user equipment
+      operationId: getUserEquipment
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserEquipment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/equipment:
+    post:
+      tags: [Item]
+      summary: Update user equipment
+      operationId: updateUserEquipment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEquipmentRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserEquipment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/upgrade:
+    post:
+      tags: [Item]
+      summary: Upgrade equipment item
+      operationId: upgradeItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpgradeItemRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/equipment/presets/{userId}:
+    get:
+      tags: [Item]
+      summary: Get equipment presets
+      operationId: getEquipmentPresets
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserEquipmentPresetList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/equipment/presets:
+    post:
+      tags: [Item]
+      summary: Save current equipment as preset
+      operationId: saveEquipmentPreset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveEquipmentPresetRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserEquipmentPreset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/items/equipment/presets/apply:
+    post:
+      tags: [Item]
+      summary: Apply equipment preset
+      operationId: applyEquipmentPreset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyEquipmentPresetRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserEquipment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/characters/{userId}:
+    get:
+      tags: [Character]
+      summary: Get character stats
+      operationId: getCharacterStats
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCharacterStat'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/characters/upgrade:
+    post:
+      tags: [Character]
+      summary: Upgrade character stat
+      operationId: upgradeCharacterStat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpgradeCharacterStatRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseCharacterStat'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/daily-quests/{userId}:
+    get:
+      tags: [DailyQuest]
+      summary: Get daily quest status
+      operationId: getDailyQuestStatus
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDailyQuestStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/daily-quests/progress:
+    post:
+      tags: [DailyQuest]
+      summary: Add daily quest progress
+      operationId: addDailyQuestProgress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DailyQuestProgressRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDailyQuestStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/daily-quests/claim:
+    post:
+      tags: [DailyQuest]
+      summary: Claim daily quest reward
+      operationId: claimDailyQuestReward
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DailyQuestClaimRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDailyQuestStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/dungeons/{dungeonId}/progress/{userId}:
+    get:
+      tags: [Dungeon]
+      summary: Get dungeon progress
+      operationId: getDungeonProgress
+      parameters:
+        - name: dungeonId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: dungeon1
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDungeonProgress'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/dungeons/{dungeonId}/progress:
+    post:
+      tags: [Dungeon]
+      summary: Update dungeon progress
+      operationId: updateDungeonProgress
+      parameters:
+        - name: dungeonId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: dungeon1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDungeonProgressRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseDungeonProgress'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+components:
+  responses:
+    BadRequest:
+      description: Validation or business rule error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorResponse'
+
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: userId must not be null
+      required: [code, message]
+
+    ApiErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        data:
+          nullable: true
+        error:
+          $ref: '#/components/schemas/ApiError'
+      required: [success, data, error]
+
+    CreatePlayerRequest:
+      type: object
+      properties:
+        nickname:
+          type: string
+          maxLength: 20
+      required: [nickname]
+
+    PlayerResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        level:
+          type: integer
+          format: int64
+        gold:
+          type: integer
+          format: int64
+      required: [id, nickname, level, gold]
+
+    WalletResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        gold:
+          type: integer
+          format: int64
+        gem:
+          type: integer
+          format: int64
+        energy:
+          type: integer
+          format: int32
+        updatedAt:
+          type: string
+          format: date-time
+      required: [userId, gold, gem, energy, updatedAt]
+
+    CurrencyType:
+      type: string
+      enum: [GOLD, GEM, ENERGY]
+
+    EarnCurrencyRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        currencyType:
+          $ref: '#/components/schemas/CurrencyType'
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+        reasonCode:
+          type: string
+        referenceId:
+          type: string
+          nullable: true
+      required: [userId, currencyType, amount, reasonCode]
+
+    SpendCurrencyRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        currencyType:
+          $ref: '#/components/schemas/CurrencyType'
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+        reasonCode:
+          type: string
+        referenceId:
+          type: string
+          nullable: true
+      required: [userId, currencyType, amount, reasonCode]
+
+    OfflineRewardClaimRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        clientLastSeenAt:
+          type: string
+          format: date-time
+      required: [userId, clientLastSeenAt]
+
+    OfflineRewardClaimResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        offlineSeconds:
+          type: integer
+          format: int64
+        goldReward:
+          type: integer
+          format: int64
+        expReward:
+          type: integer
+          format: int64
+        capped:
+          type: boolean
+      required: [userId, offlineSeconds, goldReward, expReward, capped]
+
+    RankingEntryResponse:
+      type: object
+      properties:
+        rank:
+          type: integer
+          format: int32
+        userId:
+          type: integer
+          format: int64
+        score:
+          type: integer
+          format: int64
+      required: [rank, userId, score]
+
+    MyRankingResponse:
+      type: object
+      properties:
+        seasonId:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        rank:
+          type: integer
+          format: int32
+        score:
+          type: integer
+          format: int64
+      required: [seasonId, userId, rank, score]
+
+    UpdateRankingScoreRequest:
+      type: object
+      properties:
+        seasonId:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        scoreDelta:
+          type: integer
+          format: int64
+      required: [seasonId, userId, scoreDelta]
+
+    LootItemRequest:
+      type: object
+      properties:
+        itemId:
+          type: string
+        itemName:
+          type: string
+        quantity:
+          type: integer
+          format: int64
+          minimum: 1
+      required: [itemId, itemName, quantity]
+
+    LootItemsRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LootItemRequest'
+      required: [userId, items]
+
+    ConsumeItemRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        itemId:
+          type: string
+        quantity:
+          type: integer
+          format: int64
+          minimum: 1
+      required: [userId, itemId, quantity]
+
+    EquipSlot:
+      type: string
+      enum: [weapon, armor, accessory]
+
+    UpdateEquipmentRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        slot:
+          $ref: '#/components/schemas/EquipSlot'
+        itemId:
+          type: string
+          nullable: true
+      required: [userId, slot]
+
+    UpgradeItemRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        itemId:
+          type: string
+      required: [userId, itemId]
+
+    SaveEquipmentPresetRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        presetName:
+          type: string
+      required: [userId, presetName]
+
+    ApplyEquipmentPresetRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        presetName:
+          type: string
+      required: [userId, presetName]
+
+    UserItemResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        itemId:
+          type: string
+        itemName:
+          type: string
+        quantity:
+          type: integer
+          format: int64
+        upgradeLevel:
+          type: integer
+          format: int32
+        quality:
+          type: string
+        attackBonus:
+          type: integer
+          format: int32
+        defenseBonus:
+          type: integer
+          format: int32
+        hpBonus:
+          type: integer
+          format: int32
+        mpBonus:
+          type: integer
+          format: int32
+        updatedAt:
+          type: string
+          format: date-time
+      required: [userId, itemId, itemName, quantity, upgradeLevel, quality, attackBonus, defenseBonus, hpBonus, mpBonus, updatedAt]
+
+    ItemMasterResponse:
+      type: object
+      properties:
+        itemId:
+          type: string
+        itemName:
+          type: string
+        itemType:
+          type: string
+        equipSlot:
+          type: string
+          nullable: true
+        requiredClassId:
+          type: string
+          nullable: true
+        quality:
+          type: string
+        attackBonus:
+          type: integer
+          format: int32
+        defenseBonus:
+          type: integer
+          format: int32
+        hpBonus:
+          type: integer
+          format: int32
+        mpBonus:
+          type: integer
+          format: int32
+        upgradeGoldBase:
+          type: integer
+          format: int64
+        upgradeAttackStep:
+          type: integer
+          format: int32
+        upgradeDefenseStep:
+          type: integer
+          format: int32
+        upgradeHpStep:
+          type: integer
+          format: int32
+        upgradeMpStep:
+          type: integer
+          format: int32
+        imageUrl:
+          type: string
+        description:
+          type: string
+        active:
+          type: boolean
+      required:
+        [
+          itemId,
+          itemName,
+          itemType,
+          quality,
+          attackBonus,
+          defenseBonus,
+          hpBonus,
+          mpBonus,
+          upgradeGoldBase,
+          upgradeAttackStep,
+          upgradeDefenseStep,
+          upgradeHpStep,
+          upgradeMpStep,
+          imageUrl,
+          description,
+          active
+        ]
+
+    MonsterDropResponse:
+      type: object
+      properties:
+        monsterId:
+          type: string
+        itemId:
+          type: string
+        dropChance:
+          type: number
+          format: double
+        minQuantity:
+          type: integer
+          format: int32
+        maxQuantity:
+          type: integer
+          format: int32
+        equipmentDrop:
+          type: boolean
+      required: [monsterId, itemId, dropChance, minQuantity, maxQuantity, equipmentDrop]
+
+    UserEquipmentResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        weaponItemId:
+          type: string
+          nullable: true
+        armorItemId:
+          type: string
+          nullable: true
+        accessoryItemId:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [userId, weaponItemId, armorItemId, accessoryItemId, updatedAt]
+
+    UserEquipmentPresetResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        presetName:
+          type: string
+        weaponItemId:
+          type: string
+          nullable: true
+        armorItemId:
+          type: string
+          nullable: true
+        accessoryItemId:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+      required: [userId, presetName, weaponItemId, armorItemId, accessoryItemId, updatedAt]
+
+    CharacterStatType:
+      type: string
+      enum: [ATTACK, DEFENSE, MAX_HP, MAX_MP]
+
+    UpgradeCharacterStatRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        statType:
+          $ref: '#/components/schemas/CharacterStatType'
+      required: [userId, statType]
+
+    CharacterStatResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        attack:
+          type: integer
+          format: int64
+        defense:
+          type: integer
+          format: int64
+        maxHp:
+          type: integer
+          format: int64
+        maxMp:
+          type: integer
+          format: int64
+        attackLevel:
+          type: integer
+          format: int32
+        defenseLevel:
+          type: integer
+          format: int32
+        hpLevel:
+          type: integer
+          format: int32
+        mpLevel:
+          type: integer
+          format: int32
+        nextAttackGoldCost:
+          type: integer
+          format: int64
+        nextDefenseGoldCost:
+          type: integer
+          format: int64
+        nextHpGemCost:
+          type: integer
+          format: int64
+        nextMpGemCost:
+          type: integer
+          format: int64
+      required:
+        [
+          userId,
+          attack,
+          defense,
+          maxHp,
+          maxMp,
+          attackLevel,
+          defenseLevel,
+          hpLevel,
+          mpLevel,
+          nextAttackGoldCost,
+          nextDefenseGoldCost,
+          nextHpGemCost,
+          nextMpGemCost
+        ]
+
+    DailyQuestProgressRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        dungeonKillDelta:
+          type: integer
+          format: int32
+          minimum: 0
+        goldEarnedDelta:
+          type: integer
+          format: int64
+          minimum: 0
+        statUpgradeDelta:
+          type: integer
+          format: int32
+          minimum: 0
+      required: [userId, dungeonKillDelta, goldEarnedDelta, statUpgradeDelta]
+
+    DailyQuestClaimRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+      required: [userId]
+
+    DailyQuestStatusResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        questDate:
+          type: string
+          format: date
+        dungeonKillCount:
+          type: integer
+          format: int32
+        targetKillCount:
+          type: integer
+          format: int32
+        goldEarned:
+          type: integer
+          format: int64
+        targetGoldEarned:
+          type: integer
+          format: int64
+        statUpgradeCount:
+          type: integer
+          format: int32
+        targetStatUpgradeCount:
+          type: integer
+          format: int32
+        claimable:
+          type: boolean
+        claimed:
+          type: boolean
+        rewardGold:
+          type: integer
+          format: int64
+        rewardGem:
+          type: integer
+          format: int64
+      required:
+        [
+          userId,
+          questDate,
+          dungeonKillCount,
+          targetKillCount,
+          goldEarned,
+          targetGoldEarned,
+          statUpgradeCount,
+          targetStatUpgradeCount,
+          claimable,
+          claimed,
+          rewardGold,
+          rewardGem
+        ]
+
+    UpdateDungeonProgressRequest:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        currentWave:
+          type: integer
+          format: int32
+          minimum: 1
+        maxUnlockedWave:
+          type: integer
+          format: int32
+          minimum: 1
+      required: [userId, currentWave, maxUnlockedWave]
+
+    DungeonProgressResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        dungeonId:
+          type: string
+        currentWave:
+          type: integer
+          format: int32
+        maxUnlockedWave:
+          type: integer
+          format: int32
+      required: [userId, dungeonId, currentWave, maxUnlockedWave]
+
+    ApiResponsePlayer:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/PlayerResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponsePlayerList:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayerResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseWallet:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/WalletResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseOfflineRewardClaim:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/OfflineRewardClaimResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseRankingEntryList:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankingEntryResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseMyRanking:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/MyRankingResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseUserItemList:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserItemResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseUserItem:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/UserItemResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseItemMaster:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/ItemMasterResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseItemMasterList:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemMasterResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseMonsterDropList:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonsterDropResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseUserEquipment:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/UserEquipmentResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseUserEquipmentPreset:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/UserEquipmentPresetResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseUserEquipmentPresetList:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserEquipmentPresetResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseCharacterStat:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/CharacterStatResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseDailyQuestStatus:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/DailyQuestStatusResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
+
+    ApiResponseDungeonProgress:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/DungeonProgressResponse'
+        error:
+          nullable: true
+      required: [success, data, error]
