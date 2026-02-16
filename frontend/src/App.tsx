@@ -1,4 +1,34 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, ReactElement, SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  Chip,
+  Divider,
+  FormControl,
+  InputLabel,
+  List,
+  ListItem,
+  ListItemText,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Tab,
+  Tabs,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography
+} from '@mui/material';
+import SportsEsportsRoundedIcon from '@mui/icons-material/SportsEsportsRounded';
+import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
+import ShieldRoundedIcon from '@mui/icons-material/ShieldRounded';
+import AssignmentTurnedInRoundedIcon from '@mui/icons-material/AssignmentTurnedInRounded';
+import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import ScienceRoundedIcon from '@mui/icons-material/ScienceRounded';
 import {
   AccountResponse,
   CharacterStatResponse,
@@ -50,6 +80,16 @@ type ViewTab = 'game' | 'inventory' | 'equipment' | 'quest' | 'companionRecruit'
 type SortType = 'rarity' | 'name' | 'quantity';
 type EquipmentSlot = 'weapon' | 'armor' | 'accessory';
 type CompanionSlot = 1 | 2 | 3 | 4 | 5;
+
+const viewTabMeta: Array<{ tab: ViewTab; label: string; icon: ReactElement }> = [
+  { tab: 'game', label: '게임', icon: <SportsEsportsRoundedIcon fontSize="small" /> },
+  { tab: 'inventory', label: '인벤토리', icon: <Inventory2RoundedIcon fontSize="small" /> },
+  { tab: 'equipment', label: '장착', icon: <ShieldRoundedIcon fontSize="small" /> },
+  { tab: 'quest', label: '퀘스트', icon: <AssignmentTurnedInRoundedIcon fontSize="small" /> },
+  { tab: 'companionRecruit', label: '동료 뽑기', icon: <AutoAwesomeRoundedIcon fontSize="small" /> },
+  { tab: 'companionManage', label: '동료 설정', icon: <GroupsRoundedIcon fontSize="small" /> },
+  { tab: 'companionFuse', label: '동료 합성', icon: <ScienceRoundedIcon fontSize="small" /> }
+];
 
 const rarityOrder: Record<string, number> = {
   'flame-sword': 5,
@@ -859,29 +899,21 @@ export default function App() {
         )}
 
         {player && entered && (
-          <div className="tab-box">
-            <button type="button" onClick={() => setViewTab('game')} disabled={viewTab === 'game'}>
-              게임
-            </button>
-            <button type="button" onClick={() => setViewTab('inventory')} disabled={viewTab === 'inventory'}>
-              인벤토리
-            </button>
-            <button type="button" onClick={() => setViewTab('equipment')} disabled={viewTab === 'equipment'}>
-              장착
-            </button>
-            <button type="button" onClick={() => setViewTab('quest')} disabled={viewTab === 'quest'}>
-              퀘스트
-            </button>
-            <button type="button" onClick={() => setViewTab('companionRecruit')} disabled={viewTab === 'companionRecruit'}>
-              동료 뽑기
-            </button>
-            <button type="button" onClick={() => setViewTab('companionManage')} disabled={viewTab === 'companionManage'}>
-              동료 설정
-            </button>
-            <button type="button" onClick={() => setViewTab('companionFuse')} disabled={viewTab === 'companionFuse'}>
-              동료 합성
-            </button>
-          </div>
+          <Paper elevation={0} sx={{ mt: 2, backgroundColor: 'rgba(15, 24, 45, 0.78)', border: '1px solid #2e4468' }}>
+            <Tabs
+              value={viewTab}
+              onChange={(_: SyntheticEvent, value: ViewTab) => setViewTab(value)}
+              variant="scrollable"
+              scrollButtons="auto"
+              textColor="inherit"
+              indicatorColor="primary"
+              aria-label="view tabs"
+            >
+              {viewTabMeta.map((tab) => (
+                <Tab key={tab.tab} value={tab.tab} icon={tab.icon} iconPosition="start" label={tab.label} />
+              ))}
+            </Tabs>
+          </Paper>
         )}
 
         {player && entered && viewTab === 'game' && (
@@ -890,69 +922,72 @@ export default function App() {
             <p>
               현재: {currentWave} / 최대: {maxUnlockedWave}
             </p>
-            <div className="segment-row">
-              <button type="button" className={!waveLocked ? 'seg-active' : ''} onClick={() => setWaveLocked(false)}>
-                진행
-              </button>
-              <button type="button" className={waveLocked ? 'seg-active' : ''} onClick={() => setWaveLocked(true)}>
-                고정
-              </button>
-            </div>
-            <select value={currentWave} onChange={(e) => handleSelectWave(Number(e.target.value))}>
-              {Array.from({ length: maxUnlockedWave }, (_, i) => i + 1).map((wave) => (
-                <option key={wave} value={wave}>
-                  Wave {wave}
-                </option>
-              ))}
-            </select>
-            <div className="segment-row">
-              <button type="button" className={battleSpeed === 1 ? 'seg-active' : ''} onClick={() => setBattleSpeed(1)}>
-                X1
-              </button>
-              <button type="button" className={battleSpeed === 2 ? 'seg-active' : ''} onClick={() => setBattleSpeed(2)}>
-                X2
-              </button>
-              <button type="button" className={battleSpeed === 3 ? 'seg-active' : ''} onClick={() => setBattleSpeed(3)}>
-                X3
-              </button>
-            </div>
+            <ToggleButtonGroup
+              color="primary"
+              exclusive
+              value={waveLocked ? 'lock' : 'progress'}
+              onChange={(_: SyntheticEvent, value: string | null) => {
+                if (value === 'lock') setWaveLocked(true);
+                if (value === 'progress') setWaveLocked(false);
+              }}
+              fullWidth
+            >
+              <ToggleButton value="progress">진행</ToggleButton>
+              <ToggleButton value="lock">고정</ToggleButton>
+            </ToggleButtonGroup>
+            <FormControl size="small" fullWidth>
+              <InputLabel id="wave-select-label">웨이브</InputLabel>
+              <Select
+                labelId="wave-select-label"
+                value={currentWave}
+                label="웨이브"
+                onChange={(e) => handleSelectWave(Number(e.target.value))}
+              >
+                {Array.from({ length: maxUnlockedWave }, (_, i) => i + 1).map((wave) => (
+                  <MenuItem key={wave} value={wave}>
+                    Wave {wave}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <ToggleButtonGroup
+              color="secondary"
+              exclusive
+              value={battleSpeed}
+              onChange={(_: SyntheticEvent, value: 1 | 2 | 3 | null) => value && setBattleSpeed(value)}
+              fullWidth
+            >
+              <ToggleButton value={1}>X1</ToggleButton>
+              <ToggleButton value={2}>X2</ToggleButton>
+              <ToggleButton value={3}>X3</ToggleButton>
+            </ToggleButtonGroup>
           </div>
         )}
 
         {player && wallet && viewTab === 'game' && (
           <div className="economy-box">
             <h3>재화</h3>
-            <p>Gold: {wallet.gold}</p>
-            <p>Gem: {wallet.gem}</p>
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              <Chip label={`Gold ${wallet.gold}`} color="warning" variant="filled" />
+              <Chip label={`Gem ${wallet.gem}`} color="info" variant="filled" />
+            </Stack>
           </div>
         )}
 
         {player && characterStats && viewTab === 'game' && (
           <div className="upgrade-box">
             <h3>능력치 업그레이드</h3>
-            <div className="segment-row">
-              <button
-                type="button"
-                className={upgradeMultiplier === 1 ? 'seg-active' : ''}
-                onClick={() => setUpgradeMultiplier(1)}
-              >
-                X1
-              </button>
-              <button
-                type="button"
-                className={upgradeMultiplier === 10 ? 'seg-active' : ''}
-                onClick={() => setUpgradeMultiplier(10)}
-              >
-                X10
-              </button>
-              <button
-                type="button"
-                className={upgradeMultiplier === 100 ? 'seg-active' : ''}
-                onClick={() => setUpgradeMultiplier(100)}
-              >
-                X100
-              </button>
-            </div>
+            <ToggleButtonGroup
+              color="secondary"
+              exclusive
+              value={upgradeMultiplier}
+              onChange={(_: SyntheticEvent, value: 1 | 10 | 100 | null) => value && setUpgradeMultiplier(value)}
+              fullWidth
+            >
+              <ToggleButton value={1}>X1</ToggleButton>
+              <ToggleButton value={10}>X10</ToggleButton>
+              <ToggleButton value={100}>X100</ToggleButton>
+            </ToggleButtonGroup>
             <p>ATK {characterStats.attack} (Lv.{characterStats.attackLevel})</p>
             <button type="button" onClick={() => handleUpgrade('ATTACK')} disabled={upgrading || !canUpgrade.attack}>
               공격 업 x{upgradeMultiplier} (Gold {upgradeCostPreview?.attack ?? characterStats.nextAttackGoldCost})
@@ -984,51 +1019,76 @@ export default function App() {
         {viewTab === 'inventory' && (
           <div className="inventory-box">
             <h3>인벤토리</h3>
-            <select value={sortType} onChange={(e) => setSortType(e.target.value as SortType)}>
-              <option value="rarity">희귀도</option>
-              <option value="quantity">수량</option>
-              <option value="name">이름</option>
-            </select>
+            <FormControl size="small" fullWidth>
+              <InputLabel id="inventory-sort-label">정렬</InputLabel>
+              <Select
+                labelId="inventory-sort-label"
+                value={sortType}
+                label="정렬"
+                onChange={(e) => setSortType(e.target.value as SortType)}
+              >
+                <MenuItem value="rarity">희귀도</MenuItem>
+                <MenuItem value="quantity">수량</MenuItem>
+                <MenuItem value="name">이름</MenuItem>
+              </Select>
+            </FormControl>
             {sortedInventory.length === 0 ? (
               <p>아이템 없음</p>
             ) : (
-              <ul className="item-list">
-                {sortedInventory.map((item) => (
-                  <li
+              <List sx={{ p: 0, display: 'grid', gap: 1 }}>
+                {sortedInventory.map((item, idx) => (
+                  <Card
                     key={`${item.itemId}-${item.userId}`}
+                    variant="outlined"
                     className={equipmentDefs[item.itemId] ? `rarity-${equipmentDefs[item.itemId].rarity}` : ''}
+                    sx={{ backgroundColor: '#131c31', animationDelay: `${Math.min(idx, 12) * 50}ms` }}
+                    classes={{ root: 'ui-stagger-card' }}
                   >
-                    <span>
-                      {equipmentDefs[item.itemId] ? `${equipmentDefs[item.itemId].icon} ` : ''}
-                      {item.itemName}
-                      {item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : ''}
-                      {equipmentDefs[item.itemId] && (
-                        <small className="item-effect"> ({formatItemBonus(item)})</small>
-                      )}
-                      {itemCatalogById[item.itemId]?.requiredClassId && (
-                        <small className="item-effect">
-                          {' '}
-                          [직업: {classLabel(normalizeClassId(itemCatalogById[item.itemId].requiredClassId))}]
-                          {normalizeClassId(itemCatalogById[item.itemId].requiredClassId) !== currentPlayerClass && ' 장착 불가'}
-                        </small>
-                      )}
-                    </span>
-                    <div className="item-actions">
-                      <strong>x{item.quantity}</strong>
-                      {['minor-potion', 'slime-gel'].includes(item.itemId) && (
-                        <button
-                          type="button"
-                          className="mini-btn"
-                          onClick={() => handleConsumeItem(item)}
-                          disabled={consumingItemId === item.itemId}
-                        >
-                          {consumingItemId === item.itemId ? '사용중' : '사용'}
-                        </button>
-                      )}
-                    </div>
-                  </li>
+                    <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
+                      <ListItem
+                        disablePadding
+                        secondaryAction={
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Chip size="small" label={`x${item.quantity}`} />
+                            {['minor-potion', 'slime-gel'].includes(item.itemId) && (
+                              <Button
+                                type="button"
+                                size="small"
+                                variant="contained"
+                                onClick={() => handleConsumeItem(item)}
+                                disabled={consumingItemId === item.itemId}
+                              >
+                                {consumingItemId === item.itemId ? '사용중' : '사용'}
+                              </Button>
+                            )}
+                          </Stack>
+                        }
+                      >
+                        <ListItemText
+                          primary={`${equipmentDefs[item.itemId] ? `${equipmentDefs[item.itemId].icon} ` : ''}${item.itemName}${
+                            item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : ''
+                          }`}
+                          secondary={
+                            <>
+                              {equipmentDefs[item.itemId] && (
+                                <Typography component="span" variant="caption" sx={{ display: 'block', color: '#9fc2ff' }}>
+                                  {formatItemBonus(item)}
+                                </Typography>
+                              )}
+                              {itemCatalogById[item.itemId]?.requiredClassId && (
+                                <Typography component="span" variant="caption" sx={{ color: '#9fc2ff' }}>
+                                  직업: {classLabel(normalizeClassId(itemCatalogById[item.itemId].requiredClassId))}
+                                  {normalizeClassId(itemCatalogById[item.itemId].requiredClassId) !== currentPlayerClass && ' (장착 불가)'}
+                                </Typography>
+                              )}
+                            </>
+                          }
+                        />
+                      </ListItem>
+                    </CardContent>
+                  </Card>
                 ))}
-              </ul>
+              </List>
             )}
           </div>
         )}
@@ -1036,44 +1096,50 @@ export default function App() {
         {viewTab === 'equipment' && (
           <div className="inventory-box">
             <h3>장착 화면</h3>
-            <div className="equip-grid">
-              <div className="equip-box">
-                <h4>무기 슬롯</h4>
-                <p>{equippedRows.weapon ? equippedRows.weapon.itemName : '미장착'}</p>
-                <p className="item-effect">{equippedRows.weapon ? formatItemBonus(equippedRows.weapon) : '-'}</p>
-                <button
-                  type="button"
-                  className="mini-btn"
-                  onClick={() => handleUnequipSlot('weapon')}
-                >
-                  해제
-                </button>
-              </div>
-              <div className="equip-box">
-                <h4>방어구 슬롯</h4>
-                <p>{equippedRows.armor ? equippedRows.armor.itemName : '미장착'}</p>
-                <p className="item-effect">{equippedRows.armor ? formatItemBonus(equippedRows.armor) : '-'}</p>
-                <button
-                  type="button"
-                  className="mini-btn"
-                  onClick={() => handleUnequipSlot('armor')}
-                >
-                  해제
-                </button>
-              </div>
-              <div className="equip-box">
-                <h4>장신구 슬롯</h4>
-                <p>{equippedRows.accessory ? equippedRows.accessory.itemName : '미장착'}</p>
-                <p className="item-effect">{equippedRows.accessory ? formatItemBonus(equippedRows.accessory) : '-'}</p>
-                <button
-                  type="button"
-                  className="mini-btn"
-                  onClick={() => handleUnequipSlot('accessory')}
-                >
-                  해제
-                </button>
-              </div>
-            </div>
+            <Stack spacing={1}>
+              <Card variant="outlined" sx={{ backgroundColor: '#131c31' }}>
+                <CardContent>
+                  <Typography variant="subtitle2">무기 슬롯</Typography>
+                  <Typography variant="body2">{equippedRows.weapon ? equippedRows.weapon.itemName : '미장착'}</Typography>
+                  <Typography variant="caption" sx={{ color: '#9fc2ff' }}>
+                    {equippedRows.weapon ? formatItemBonus(equippedRows.weapon) : '-'}
+                  </Typography>
+                  <Box sx={{ mt: 1 }}>
+                    <Button type="button" size="small" onClick={() => handleUnequipSlot('weapon')}>
+                      해제
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+              <Card variant="outlined" sx={{ backgroundColor: '#131c31' }}>
+                <CardContent>
+                  <Typography variant="subtitle2">방어구 슬롯</Typography>
+                  <Typography variant="body2">{equippedRows.armor ? equippedRows.armor.itemName : '미장착'}</Typography>
+                  <Typography variant="caption" sx={{ color: '#9fc2ff' }}>
+                    {equippedRows.armor ? formatItemBonus(equippedRows.armor) : '-'}
+                  </Typography>
+                  <Box sx={{ mt: 1 }}>
+                    <Button type="button" size="small" onClick={() => handleUnequipSlot('armor')}>
+                      해제
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+              <Card variant="outlined" sx={{ backgroundColor: '#131c31' }}>
+                <CardContent>
+                  <Typography variant="subtitle2">장신구 슬롯</Typography>
+                  <Typography variant="body2">{equippedRows.accessory ? equippedRows.accessory.itemName : '미장착'}</Typography>
+                  <Typography variant="caption" sx={{ color: '#9fc2ff' }}>
+                    {equippedRows.accessory ? formatItemBonus(equippedRows.accessory) : '-'}
+                  </Typography>
+                  <Box sx={{ mt: 1 }}>
+                    <Button type="button" size="small" onClick={() => handleUnequipSlot('accessory')}>
+                      해제
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Stack>
             {activeSetEffects.length > 0 && (
               <div className="set-box">
                 {activeSetEffects.map((effect) => (
@@ -1081,48 +1147,59 @@ export default function App() {
                 ))}
               </div>
             )}
-            <div className="segment-row">
-              <button
-                type="button"
-                className={equipmentViewSlot === 'weapon' ? 'seg-active' : ''}
-                onClick={() => setEquipmentViewSlot('weapon')}
-              >
-                무기
-              </button>
-              <button
-                type="button"
-                className={equipmentViewSlot === 'armor' ? 'seg-active' : ''}
-                onClick={() => setEquipmentViewSlot('armor')}
-              >
-                방어구
-              </button>
-              <button
-                type="button"
-                className={equipmentViewSlot === 'accessory' ? 'seg-active' : ''}
-                onClick={() => setEquipmentViewSlot('accessory')}
-              >
-                장신구
-              </button>
-            </div>
-            <ul className="item-list">
-              {selectedEquipCandidates.map((item) => (
-                <li key={`equip-${equipmentViewSlot}-${item.itemId}-${item.userId}`} className={`rarity-${equipmentDefs[item.itemId].rarity}`}>
-                  <span>
-                    {equipmentDefs[item.itemId].icon} {item.itemName} {item.upgradeLevel > 0 ? `+${item.upgradeLevel}` : ''}
-                    <small className="item-effect"> ({formatItemBonus(item)})</small>
-                  </span>
-                  <div className="item-actions">
-                    <strong>x{item.quantity}</strong>
-                    <button type="button" className="mini-btn" onClick={() => handleUpgradeItem(item)} disabled={upgradingItemId === item.itemId}>
-                      {upgradingItemId === item.itemId ? '강화중' : `강화 ${calcItemUpgradeGoldCost(item.upgradeLevel)}G`}
-                    </button>
-                    <button type="button" className="mini-btn" onClick={() => handleToggleEquip(item)}>
-                      {equipped[equipmentDefs[item.itemId].slot] === item.itemId ? '해제' : '장착'}
-                    </button>
-                  </div>
-                </li>
+            <ToggleButtonGroup
+              color="primary"
+              exclusive
+              value={equipmentViewSlot}
+              onChange={(_: SyntheticEvent, value: EquipmentSlot | null) => value && setEquipmentViewSlot(value)}
+              fullWidth
+            >
+              <ToggleButton value="weapon">무기</ToggleButton>
+              <ToggleButton value="armor">방어구</ToggleButton>
+              <ToggleButton value="accessory">장신구</ToggleButton>
+            </ToggleButtonGroup>
+            <List sx={{ p: 0, display: 'grid', gap: 1 }}>
+              {selectedEquipCandidates.map((item, idx) => (
+                <Card
+                  key={`equip-${equipmentViewSlot}-${item.itemId}-${item.userId}`}
+                  variant="outlined"
+                  className={`rarity-${equipmentDefs[item.itemId].rarity}`}
+                  sx={{ backgroundColor: '#131c31', animationDelay: `${Math.min(idx, 12) * 50}ms` }}
+                  classes={{ root: 'ui-stagger-card' }}
+                >
+                  <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
+                    <ListItem
+                      disablePadding
+                      secondaryAction={
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Chip size="small" label={`x${item.quantity}`} />
+                          <Button
+                            type="button"
+                            size="small"
+                            variant="outlined"
+                            onClick={() => handleUpgradeItem(item)}
+                            disabled={upgradingItemId === item.itemId}
+                          >
+                            {upgradingItemId === item.itemId ? '강화중' : `강화 ${calcItemUpgradeGoldCost(item.upgradeLevel)}G`}
+                          </Button>
+                          <Button type="button" size="small" variant="contained" onClick={() => handleToggleEquip(item)}>
+                            {equipped[equipmentDefs[item.itemId].slot] === item.itemId ? '해제' : '장착'}
+                          </Button>
+                        </Stack>
+                      }
+                    >
+                      <ListItemText
+                        primary={`${equipmentDefs[item.itemId].icon} ${item.itemName} ${
+                          item.upgradeLevel > 0 ? `+${item.upgradeLevel}` : ''
+                        }`}
+                        secondary={<Typography variant="caption" sx={{ color: '#9fc2ff' }}>{formatItemBonus(item)}</Typography>}
+                      />
+                    </ListItem>
+                  </CardContent>
+                </Card>
               ))}
-            </ul>
+            </List>
+            <Divider flexItem sx={{ borderColor: '#2c3a56' }} />
             <div className="preset-box">
               <h4>프리셋</h4>
               <div className="preset-row">
@@ -1153,122 +1230,191 @@ export default function App() {
         {viewTab === 'quest' && dailyQuestList && (
           <div className="inventory-box">
             <h3>데일리 퀘스트 10개</h3>
-            <p>{questSummaryLabel}</p>
-            <ul className="item-list">
-              {dailyQuestList.quests.map((quest) => (
-                <li key={quest.questCode}>
-                  <span>
-                    {quest.title}
-                    <small className="item-effect">
-                      {' '}
-                      ({quest.progress}/{quest.target}) / 보상 {quest.rewardGold}G {quest.rewardGem}Gem
-                    </small>
-                  </span>
-                  <div className="item-actions">
-                    <button
-                      type="button"
-                      className="mini-btn"
-                      disabled={!quest.claimable || quest.claimed || questLoadingCode === quest.questCode}
-                      onClick={() => handleClaimDailyQuest(quest.questCode)}
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              <Chip color="primary" label={questSummaryLabel} />
+            </Stack>
+            <List sx={{ p: 0, display: 'grid', gap: 1 }}>
+              {dailyQuestList.quests.map((quest, idx) => (
+                <Card
+                  key={quest.questCode}
+                  variant="outlined"
+                  sx={{ backgroundColor: '#131c31', animationDelay: `${Math.min(idx, 12) * 45}ms` }}
+                  classes={{ root: 'ui-stagger-card' }}
+                >
+                  <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
+                    <ListItem
+                      disablePadding
+                      secondaryAction={
+                        <Button
+                          type="button"
+                          size="small"
+                          variant={quest.claimable && !quest.claimed ? 'contained' : 'outlined'}
+                          disabled={!quest.claimable || quest.claimed || questLoadingCode === quest.questCode}
+                          onClick={() => handleClaimDailyQuest(quest.questCode)}
+                        >
+                          {quest.claimed ? '수령완료' : questLoadingCode === quest.questCode ? '수령중' : quest.claimable ? '수령' : '진행중'}
+                        </Button>
+                      }
                     >
-                      {quest.claimed ? '수령완료' : questLoadingCode === quest.questCode ? '수령중' : quest.claimable ? '수령' : '진행중'}
-                    </button>
-                  </div>
-                </li>
+                      <ListItemText
+                        primary={quest.title}
+                        secondary={
+                          <Typography variant="caption" sx={{ color: '#9fc2ff' }}>
+                            ({quest.progress}/{quest.target}) / 보상 {quest.rewardGold}G {quest.rewardGem}Gem
+                          </Typography>
+                        }
+                      />
+                    </ListItem>
+                  </CardContent>
+                </Card>
               ))}
-            </ul>
+            </List>
           </div>
         )}
 
         {viewTab === 'companionRecruit' && (
           <div className="inventory-box">
             <h3>동료 뽑기 (Gem)</h3>
-            <p>1회: 300 Gem / 10회: 2700 Gem (9회 가격)</p>
-            <div className="segment-row">
-              <button type="button" className={recruitingCount === 1 ? 'seg-active' : ''} onClick={() => setRecruitingCount(1)}>
-                x1
-              </button>
-              <button type="button" className={recruitingCount === 10 ? 'seg-active' : ''} onClick={() => setRecruitingCount(10)}>
-                x10
-              </button>
-              <button type="button" onClick={handleRecruitCompanion} disabled={recruiting || (wallet?.gem ?? 0) < recruitCost}>
+            <Typography variant="body2" sx={{ color: '#9fc2ff' }}>
+              1회: 300 Gem / 10회: 2700 Gem (9회 가격)
+            </Typography>
+            <ToggleButtonGroup
+              color="secondary"
+              exclusive
+              value={recruitingCount}
+              onChange={(_: SyntheticEvent, value: 1 | 10 | null) => value && setRecruitingCount(value)}
+              fullWidth
+            >
+              <ToggleButton value={1}>x1</ToggleButton>
+              <ToggleButton value={10}>x10</ToggleButton>
+            </ToggleButtonGroup>
+            <Button type="button" variant="contained" onClick={handleRecruitCompanion} disabled={recruiting || (wallet?.gem ?? 0) < recruitCost}>
                 {recruiting ? '뽑는 중...' : `뽑기 (${recruitCost} Gem)`}
-              </button>
-            </div>
-            <ul className="item-list">
-              {companionMasters.slice(0, 20).map((row) => (
-                <li key={row.companionId}>
-                  <span>
-                    {row.companionName} [{row.grade}] / {row.classId} / ATK {row.baseAttack} DEF {row.baseDefense} HP {row.baseHp} MP {row.baseMp}
-                  </span>
-                </li>
+            </Button>
+            <List sx={{ p: 0, display: 'grid', gap: 1 }}>
+              {companionMasters.slice(0, 20).map((row, idx) => (
+                <Card
+                  key={row.companionId}
+                  variant="outlined"
+                  sx={{ backgroundColor: '#131c31', animationDelay: `${Math.min(idx, 12) * 45}ms` }}
+                  classes={{ root: 'ui-stagger-card' }}
+                >
+                  <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
+                    <ListItem disablePadding>
+                      <ListItemText
+                        primary={`${row.companionName} [${row.grade}]`}
+                        secondary={
+                          <Typography variant="caption" sx={{ color: '#9fc2ff' }}>
+                            {row.classId} / ATK {row.baseAttack} DEF {row.baseDefense} HP {row.baseHp} MP {row.baseMp}
+                          </Typography>
+                        }
+                      />
+                    </ListItem>
+                  </CardContent>
+                </Card>
               ))}
-            </ul>
+            </List>
           </div>
         )}
 
         {viewTab === 'companionManage' && (
           <div className="inventory-box">
             <h3>동료 설정 (최대 5명)</h3>
-            <p>
+            <Typography variant="body2" sx={{ color: '#9fc2ff' }}>
               편성 보너스: ATK {companionPartyBonus?.bonusAttack ?? 0} / DEF {companionPartyBonus?.bonusDefense ?? 0} / HP{' '}
               {companionPartyBonus?.bonusHp ?? 0} / MP {companionPartyBonus?.bonusMp ?? 0}
-            </p>
-            <ul className="item-list">
-              {sortedCompanionsForManage.map((row) => (
-                <li key={`companion-manage-${row.id}`}>
-                  <span>
-                    {row.slotNo != null ? '✅ ' : ''}
-                    {row.companionName} [{row.grade}] Lv.{row.level} / 복제 {row.copies} / 편성 {row.slotNo ?? '-'}
-                    {row.slotNo != null && <strong className="slot-badge">S{row.slotNo}</strong>}
-                  </span>
-                  <div className="item-actions">
-                    <label className="companion-check">
-                      <input
-                        type="checkbox"
-                        checked={row.slotNo != null}
-                        disabled={assigningCompanionId === row.id || (row.slotNo == null && activeCompanions.length >= 5)}
-                        onChange={() => handleToggleCompanionAssign(row)}
+            </Typography>
+            <List sx={{ p: 0, display: 'grid', gap: 1 }}>
+              {sortedCompanionsForManage.map((row, idx) => (
+                <Card
+                  key={`companion-manage-${row.id}`}
+                  variant="outlined"
+                  sx={{ backgroundColor: '#131c31', animationDelay: `${Math.min(idx, 12) * 45}ms` }}
+                  classes={{ root: 'ui-stagger-card' }}
+                >
+                  <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
+                    <ListItem
+                      disablePadding
+                      secondaryAction={
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          {row.slotNo != null && <Chip size="small" color="primary" label={`S${row.slotNo}`} />}
+                          <Checkbox
+                            checked={row.slotNo != null}
+                            disabled={assigningCompanionId === row.id || (row.slotNo == null && activeCompanions.length >= 5)}
+                            onChange={() => handleToggleCompanionAssign(row)}
+                          />
+                        </Stack>
+                      }
+                    >
+                      <ListItemText
+                        primary={`${row.companionName} [${row.grade}]`}
+                        secondary={
+                          <Typography variant="caption" sx={{ color: '#9fc2ff' }}>
+                            Lv.{row.level} / 복제 {row.copies} / 편성 {row.slotNo ?? '-'}
+                          </Typography>
+                        }
                       />
-                      <span>{row.slotNo != null ? `선택됨(S${row.slotNo})` : '선택'}</span>
-                    </label>
-                  </div>
-                </li>
+                    </ListItem>
+                  </CardContent>
+                </Card>
               ))}
-            </ul>
+            </List>
           </div>
         )}
 
         {viewTab === 'companionFuse' && (
           <div className="inventory-box">
             <h3>동료 합성</h3>
-            <ul className="item-list">
-              {userCompanions.map((row) => {
+            <List sx={{ p: 0, display: 'grid', gap: 1 }}>
+              {userCompanions.map((row, idx) => {
                 const need = resolveFuseNeed(row.level);
                 const canFuse = row.copies >= need;
                 return (
-                  <li key={`companion-fuse-${row.id}`}>
-                    <span>
-                      {row.companionName} Lv.{row.level} / 보유 복제 {row.copies} / 필요 {need}
-                    </span>
-                    <div className="item-actions">
-                      <button
+                  <Card
+                    key={`companion-fuse-${row.id}`}
+                    variant="outlined"
+                    sx={{ backgroundColor: '#131c31', animationDelay: `${Math.min(idx, 12) * 45}ms` }}
+                    classes={{ root: 'ui-stagger-card' }}
+                  >
+                    <CardContent sx={{ p: 1.25, '&:last-child': { pb: 1.25 } }}>
+                      <ListItem
+                        disablePadding
+                        secondaryAction={
+                          <Button
                         type="button"
-                        className="mini-btn"
+                            size="small"
+                            variant={canFuse ? 'contained' : 'outlined'}
                         disabled={!canFuse || fusingCompanionId === row.id}
                         onClick={() => handleFuseCompanion(row)}
                       >
                         {fusingCompanionId === row.id ? '합성중' : canFuse ? '합성' : '복제 부족'}
-                      </button>
-                    </div>
-                  </li>
+                          </Button>
+                        }
+                      >
+                        <ListItemText
+                          primary={`${row.companionName} Lv.${row.level}`}
+                          secondary={
+                            <Typography variant="caption" sx={{ color: '#9fc2ff' }}>
+                              보유 복제 {row.copies} / 필요 {need}
+                            </Typography>
+                          }
+                        />
+                      </ListItem>
+                    </CardContent>
+                  </Card>
                 );
               })}
-            </ul>
+            </List>
           </div>
         )}
 
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <Paper sx={{ mt: 2, p: 1.2, border: '1px solid #8a2f2f', background: '#2a1216' }}>
+            <Typography variant="body2" sx={{ color: '#ffb5b5' }}>
+              {error}
+            </Typography>
+          </Paper>
+        )}
       </section>
 
       {player && entered && characterStats && (

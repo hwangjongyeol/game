@@ -55,6 +55,30 @@
   - `phaser3-rex-plugins` 설치 및 `config.ts` import 기반 고정 연결 완료
   - `MainScene` HUD에 rexUI 라벨 렌더링 추가
   - 번들 최적화: Vite `manualChunks` 적용(`vendor-phaser`, `vendor-rexui`, `vendor` 분리)
+- UI/게임 라이브러리 체감 강화
+  - 프론트 메인 앱에 MUI 테마/컴포넌트 적용(탭, 토글, 셀렉트, 칩, 에러 Alert)
+  - 네트워크 제한 환경 대응을 위해 `admin-frontend/node_modules` 로컬 경로 기반 의존성 연결
+  - Phaser `MainScene`에 rexUI `roundRectangleProgress` 기반 Hero/Monster HP/MP 바 HUD 추가
+  - 전투 로그 텍스트 페이드 애니메이션 추가 및 rexUI 상태 배지에 속도/웨이브 실시간 반영
+- UI/게임 라이브러리 2차 고도화
+  - `frontend` 기준 MUI 의존성 정식 버전 명시(`@mui/material`, `@mui/icons-material`, `@emotion/react`, `@emotion/styled`)
+  - 현재 실행 환경 네트워크 제약으로 실제 설치 해석은 `admin-frontend/node_modules` 링크 fallback 병행
+  - 인벤토리/장착 탭을 MUI `Card/List/Chip/Button/Select` 중심 UI로 전환
+  - Phaser `MainScene`에 rexUI `circularProgress` 기반 스킬 쿨다운 링/남은시간 표시 추가
+  - 전투 데미지/회복 플로팅 텍스트 애니메이션 추가(일반/치명타/흡혈 회복)
+- UI/게임 라이브러리 3차 고도화 (요청 1/2/3 반영)
+  - 퀘스트/동료(뽑기/설정/합성) 탭을 MUI `Card/List/Button/Checkbox/Toggle` 기반으로 일관화
+  - 클래스별 스킬 쿨다운 링 스타일 분기(전사/마법사/궁수별 색상/아이콘 텍스트)
+  - 데미지 텍스트에 효과 라벨 추가(CRIT/BREAK/ARC/ECHO/LIFESTEAL/HIT)
+- UI/게임 라이브러리 4차 고도화 (추가 1/2/3 반영)
+  - 리스트형 UI에 스태거 등장 애니메이션(`uiStaggerIn`) 적용
+  - 클래스 액티브 스킬별 시각 연출 강화
+    - Knight(BREAK): 슬래시 이펙트 + 카메라 흔들림
+    - Mage(ARC): 아케인 링 확산 + 카메라 플래시
+    - Ranger(VAMPIRIC): 흡혈 오브 상승 이펙트
+  - `frontend` 런타임 기준 MUI/Emotion 의존성 로컬화
+    - `frontend/node_modules`에서 `admin-frontend` 심볼릭 링크 제거
+    - 로컬 복사 패키지 기반으로 `npm run build` 검증 완료
 
 ## 2026-02-14
 
@@ -159,6 +183,7 @@
   - 플레이어 소프트 삭제/최대 5캐릭터 정책 문서 및 DB 반영
 
 ### 다음 예정
-- 아이템 효과 서버 검증/영속화
-- 웨이브 선택 히스토리/즐겨찾기
-- 클래스별 액티브 이펙트(타격 애니메이션) 강화
+- 아이템 효과 서버 검증/영속화(전투 중 임시 반영값과 DB 상태 정합)
+- 웨이브 선택 히스토리/즐겨찾기(UI 저장 + 최근 선택 빠른 적용)
+- 클래스별 액티브 이펙트 강화(스킬 전용 연출/사운드/스크린셰이크)
+- 던전 전투 HUD 경량화(청크 크기/렌더링 최적화) 및 클래스별 스킬 연출 세분화

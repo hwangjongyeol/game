@@ -58,6 +58,17 @@ export class MainScene extends Phaser.Scene {
   private speedText!: Phaser.GameObjects.Text;
   private waveBannerText!: Phaser.GameObjects.Text;
   private rexHudLabel?: Phaser.GameObjects.GameObject;
+  private rexHeroHpBar?: any;
+  private rexHeroMpBar?: any;
+  private rexMonsterHpBar?: any;
+  private rexMonsterMpBar?: any;
+  private rexHeroHpText?: Phaser.GameObjects.Text;
+  private rexHeroMpText?: Phaser.GameObjects.Text;
+  private rexMonsterHpText?: Phaser.GameObjects.Text;
+  private rexMonsterMpText?: Phaser.GameObjects.Text;
+  private rexSkillCooldownRing?: any;
+  private rexSkillCooldownText?: Phaser.GameObjects.Text;
+  private heroSkillTimer?: Phaser.Time.TimerEvent;
 
   private currentWave = 1;
   private heroLevel = 1;
@@ -118,10 +129,15 @@ export class MainScene extends Phaser.Scene {
       callback: () => this.heroBasicAttack()
     });
 
-    this.time.addEvent({
+    this.heroSkillTimer = this.time.addEvent({
       delay: this.classDef.activeSkill.cooldownMs,
       loop: true,
       callback: () => this.heroSkillAttack(true)
+    });
+    this.time.addEvent({
+      delay: 120,
+      loop: true,
+      callback: () => this.refreshSkillCooldownHud()
     });
 
     this.pushLog(`던전1 자동전투 시작 / 현재 Wave ${this.currentWave} / [1/2:스킬트리, R:재전투]`);
@@ -215,23 +231,84 @@ export class MainScene extends Phaser.Scene {
 
   private createRexUiHud(width: number, height: number): void {
     const rexUI = (this as any).rexUI;
-    if (!rexUI?.add?.label) return;
+    if (!rexUI?.add?.label || !rexUI?.add?.roundRectangleProgress) return;
+    const skillHudTheme = this.resolveSkillHudTheme();
+
+    this.add
+      .rectangle(width - 196, height - 106, 296, 132, 0x07131f, 0.76)
+      .setStrokeStyle(1, 0x4c83ba, 0.85)
+      .setDepth(29);
+
+    this.rexHeroHpText = this.add.text(width - 330, height - 150, 'Hero HP', {
+      fontFamily: 'Verdana',
+      fontSize: '11px',
+      color: '#a5d9ff'
+    });
+    this.rexHeroMpText = this.add.text(width - 330, height - 128, 'Hero MP', {
+      fontFamily: 'Verdana',
+      fontSize: '11px',
+      color: '#a5d9ff'
+    });
+    this.rexMonsterHpText = this.add.text(width - 330, height - 106, 'Monster HP', {
+      fontFamily: 'Verdana',
+      fontSize: '11px',
+      color: '#ffc5bd'
+    });
+    this.rexMonsterMpText = this.add.text(width - 330, height - 84, 'Monster MP', {
+      fontFamily: 'Verdana',
+      fontSize: '11px',
+      color: '#ffc5bd'
+    });
+    this.rexHeroHpText.setDepth(30);
+    this.rexHeroMpText.setDepth(30);
+    this.rexMonsterHpText.setDepth(30);
+    this.rexMonsterMpText.setDepth(30);
+
+    this.rexHeroHpBar = rexUI.add.roundRectangleProgress(width - 220, height - 142, 188, 10, 6, 0x31d0bf, 1, {
+      trackColor: 0x1f3246
+    });
+    this.rexHeroMpBar = rexUI.add.roundRectangleProgress(width - 220, height - 120, 188, 10, 6, 0x6c9dff, 1, {
+      trackColor: 0x1f3246
+    });
+    this.rexMonsterHpBar = rexUI.add.roundRectangleProgress(width - 220, height - 98, 188, 10, 6, 0xff7d70, 1, {
+      trackColor: 0x3a2a30
+    });
+    this.rexMonsterMpBar = rexUI.add.roundRectangleProgress(width - 220, height - 76, 188, 10, 6, 0xffb764, 1, {
+      trackColor: 0x3a2a30
+    });
+
+    this.rexSkillCooldownRing = rexUI.add.circularProgress(width - 58, height - 94, 24, skillHudTheme.barColor, 1, {
+      trackColor: skillHudTheme.trackColor,
+      thickness: 0.26
+    });
+    this.rexSkillCooldownText = this.add.text(width - 58, height - 94, skillHudTheme.iconText, {
+      fontFamily: 'Verdana',
+      fontSize: '11px',
+      color: skillHudTheme.textColor
+    }).setOrigin(0.5);
+    this.rexSkillCooldownRing?.setDepth?.(30);
+    this.rexSkillCooldownText?.setDepth(31);
 
     this.rexHudLabel = rexUI.add
       .label({
         x: width - 176,
-        y: height - 28,
+        y: height - 36,
         background: this.add
-          .rectangle(0, 0, 240, 34, 0x0f2a45, 0.86)
+          .rectangle(0, 0, 240, 30, 0x0f2a45, 0.86)
           .setStrokeStyle(1, 0x69b8ff, 0.9),
-        text: this.add.text(0, 0, 'RexUI HUD Active', {
+        text: this.add.text(0, 0, 'RexUI Combat HUD', {
           fontFamily: 'Verdana',
-          fontSize: '13px',
+          fontSize: '12px',
           color: '#d6f0ff'
         }),
         space: { left: 10, right: 10, top: 6, bottom: 6 }
       })
       .setDepth(30);
+
+    this.rexHeroHpBar?.setDepth?.(30);
+    this.rexHeroMpBar?.setDepth?.(30);
+    this.rexMonsterHpBar?.setDepth?.(30);
+    this.rexMonsterMpBar?.setDepth?.(30);
   }
 
   private bindInput(): void {
@@ -243,8 +320,16 @@ export class MainScene extends Phaser.Scene {
   private heroBasicAttack(): void {
     if (!this.ensureBattleActive()) return;
     this.playStrikeTween(this.heroBody, this.heroBaseX, 26);
+    const prevHp = this.monster.state.hp;
     const result = calcBasicAttack(this.hero.stats, this.monster.stats, this.monster.state, 0.14);
     this.monster.receiveDamage(result.targetHpAfter);
+    const dealt = Math.max(0, prevHp - this.monster.state.hp);
+    this.showFloatingText(
+      this.monsterBody.x,
+      this.monsterBody.y - 125,
+      `-${dealt}${result.critical ? ' CRIT' : ''}`,
+      result.critical ? '#ffd15a' : '#ff9c87'
+    );
     this.checkBattleEnd();
   }
 
@@ -258,6 +343,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.playStrikeTween(this.heroBody, this.heroBaseX, 40);
+    this.playSkillVisualEffect(skill.effect);
     const primaryStats = { ...this.hero.stats, attack: this.hero.stats.attack + skill.attackBonus };
     let targetStats = this.monster.stats;
 
@@ -268,6 +354,13 @@ export class MainScene extends Phaser.Scene {
     const first = calcBasicAttack(primaryStats, targetStats, this.monster.state, 0.16 + skill.critBonus);
     const firstDamage = Math.max(0, this.monster.state.hp - first.targetHpAfter);
     this.monster.receiveDamage(first.targetHpAfter);
+    const primaryTag = skill.effect === 'BREAK_ARMOR' ? 'BREAK' : skill.effect === 'ARCANE_ECHO' ? 'ARC' : 'SHOT';
+    this.showFloatingText(
+      this.monsterBody.x + Phaser.Math.Between(-10, 10),
+      this.monsterBody.y - 130,
+      `-${firstDamage}${first.critical ? ' CRIT' : ''} ${primaryTag}`,
+      first.critical ? '#ffe078' : '#ffb49a'
+    );
 
     let totalDamage = firstDamage;
     if (skill.effect === 'ARCANE_ECHO' && this.monster.isAlive()) {
@@ -276,11 +369,13 @@ export class MainScene extends Phaser.Scene {
       const echoDamage = Math.max(0, this.monster.state.hp - echo.targetHpAfter);
       this.monster.receiveDamage(echo.targetHpAfter);
       totalDamage += echoDamage;
+      this.showFloatingText(this.monsterBody.x + 18, this.monsterBody.y - 112, `-${echoDamage} ECHO`, '#ffcfb6');
     }
 
     if (skill.effect === 'VAMPIRIC_SHOT') {
       const healAmount = Math.max(6, Math.floor(totalDamage * 0.3));
       this.hero.receiveDamage(this.hero.state.hp + healAmount);
+      this.showFloatingText(this.heroBody.x, this.heroBody.y - 130, `+${healAmount} LIFESTEAL`, '#93ffb4');
     }
 
     this.checkBattleEnd();
@@ -289,8 +384,16 @@ export class MainScene extends Phaser.Scene {
   private monsterTurn(): void {
     if (!this.ensureBattleActive()) return;
     this.playStrikeTween(this.monsterBody, this.monsterBaseX, -22);
+    const prevHp = this.hero.state.hp;
     const result = calcBasicAttack(this.monster.stats, this.hero.stats, this.hero.state, 0.08);
     this.hero.receiveDamage(result.targetHpAfter);
+    const dealt = Math.max(0, prevHp - this.hero.state.hp);
+    this.showFloatingText(
+      this.heroBody.x,
+      this.heroBody.y - 118,
+      `-${dealt}${result.critical ? ' CRIT' : ''} HIT`,
+      result.critical ? '#ff8e54' : '#ffb482'
+    );
     this.monster.recoverMp(4);
     this.checkBattleEnd();
   }
@@ -892,8 +995,14 @@ export class MainScene extends Phaser.Scene {
     );
 
     this.skillTreeText.setText(this.formatSkillTreeText(this.classDef.skillTree));
-    this.inventoryText.setText(this.formatInventoryText());
+    //this.inventoryText.setText(this.formatInventoryText());
     this.speedText.setText(`전투 속도: ${this.battleSpeed}x / Wave 고정: ${this.waveLocked ? 'ON' : 'OFF'}`);
+    this.refreshRexBars();
+
+    const labelText = (this.rexHudLabel as any)?.getElement?.('text');
+    if (labelText?.setText) {
+      labelText.setText(`RexUI Combat HUD / ${this.battleSpeed}x / Wave ${this.currentWave}`);
+    }
   }
 
   private formatSkillTreeText(skillTree: SkillNode[]): string {
@@ -935,6 +1044,110 @@ export class MainScene extends Phaser.Scene {
 
   private pushLog(text: string): void {
     this.logText.setText(text);
+    this.tweens.killTweensOf(this.logText);
+    this.tweens.add({
+      targets: this.logText,
+      alpha: { from: 0.45, to: 1 },
+      duration: 250,
+      ease: 'Sine.easeOut'
+    });
+  }
+
+  private refreshRexBars(): void {
+    this.setRexBarValue(this.rexHeroHpBar, this.hero.state.hp / Math.max(1, this.hero.stats.maxHp));
+    this.setRexBarValue(this.rexHeroMpBar, this.hero.state.mp / Math.max(1, this.hero.stats.maxMp));
+    this.setRexBarValue(this.rexMonsterHpBar, this.monster.state.hp / Math.max(1, this.monster.stats.maxHp));
+    this.setRexBarValue(this.rexMonsterMpBar, this.monster.state.mp / Math.max(1, this.monster.stats.maxMp));
+    this.refreshSkillCooldownHud();
+  }
+
+  private setRexBarValue(bar: any, ratio: number): void {
+    if (!bar?.setValue) return;
+    bar.setValue(Phaser.Math.Clamp(ratio, 0, 1));
+  }
+
+  private resolveSkillHudTheme(): { barColor: number; trackColor: number; textColor: string; iconText: string } {
+    if (this.classDef.id === 'knight') {
+      return { barColor: 0x5ec4ff, trackColor: 0x1d3550, textColor: '#d9f2ff', iconText: 'BRK' };
+    }
+    if (this.classDef.id === 'mage') {
+      return { barColor: 0xcd8bff, trackColor: 0x332049, textColor: '#f1ddff', iconText: 'ARC' };
+    }
+    return { barColor: 0x7dffa0, trackColor: 0x1f3a2b, textColor: '#dbffe8', iconText: 'RPD' };
+  }
+
+  private refreshSkillCooldownHud(): void {
+    if (!this.rexSkillCooldownRing?.setValue || !this.heroSkillTimer) return;
+    const progress = Phaser.Math.Clamp(this.heroSkillTimer.getProgress(), 0, 1);
+    this.rexSkillCooldownRing.setValue(1 - progress);
+    if (this.rexSkillCooldownText) {
+      const remainSec = (this.classDef.activeSkill.cooldownMs * (1 - progress)) / 1000;
+      this.rexSkillCooldownText.setText(remainSec <= 0.2 ? 'READY' : remainSec.toFixed(1));
+    }
+  }
+
+  private showFloatingText(x: number, y: number, text: string, color: string): void {
+    const floatText = this.add
+      .text(x, y, text, {
+        fontFamily: 'Verdana',
+        fontSize: '18px',
+        color,
+        stroke: '#1a1a1a',
+        strokeThickness: 4
+      })
+      .setOrigin(0.5)
+      .setDepth(36);
+
+    this.tweens.add({
+      targets: floatText,
+      y: y - 44,
+      alpha: 0,
+      duration: 580,
+      ease: 'Sine.easeOut',
+      onComplete: () => floatText.destroy()
+    });
+  }
+
+  private playSkillVisualEffect(effect: 'BREAK_ARMOR' | 'ARCANE_ECHO' | 'VAMPIRIC_SHOT'): void {
+    if (effect === 'BREAK_ARMOR') {
+      this.cameras.main.shake(90, 0.0028);
+      const slash = this.add.rectangle(this.monsterBody.x - 6, this.monsterBody.y - 24, 14, 128, 0x86d8ff, 0.72).setAngle(34).setDepth(35);
+      this.tweens.add({
+        targets: slash,
+        alpha: 0,
+        scaleX: 0.2,
+        duration: 170,
+        ease: 'Sine.easeOut',
+        onComplete: () => slash.destroy()
+      });
+      return;
+    }
+
+    if (effect === 'ARCANE_ECHO') {
+      this.cameras.main.flash(120, 130, 80, 175, true);
+      const ring = this.add.circle(this.monsterBody.x, this.monsterBody.y - 32, 16, 0xc389ff, 0.28).setDepth(35);
+      this.tweens.add({
+        targets: ring,
+        scale: 3.1,
+        alpha: 0,
+        duration: 320,
+        ease: 'Cubic.easeOut',
+        onComplete: () => ring.destroy()
+      });
+      return;
+    }
+
+    this.cameras.main.shake(70, 0.0018);
+    const lifesteal = this.add.circle(this.heroBody.x, this.heroBody.y - 26, 12, 0x86ffb0, 0.35).setDepth(35);
+    this.tweens.add({
+      targets: lifesteal,
+      y: lifesteal.y - 36,
+      scale: 1.9,
+      alpha: 0,
+      duration: 300,
+      ease: 'Sine.easeOut',
+      onComplete: () => lifesteal.destroy()
+    });
   }
 
   private resolveHeroBaseStats() {

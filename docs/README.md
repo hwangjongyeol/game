@@ -22,6 +22,7 @@
 - [08. 수익모델 (패스/광고/아이템)](./08-monetization-model.md)
 - [09. Dungeon 1 전투 시스템](./09-dungeon1-combat-system.md)
 - [10. 진행 현황](./10-progress-log.md)
+- [어드민 관리 진행 현황](admin-workspace.md)
 
 ## DB 적용 기준 (최신)
 - 단일 최신 스키마: `docs/sql/00_latest_schema.sql`
@@ -38,7 +39,7 @@ mysql -u sysbatch -p sys_batch < docs/sql/00_latest_schema.sql
 
 
 ##  다음 단계로 바로 이어서
-1. 몬스터 타입 확장(고블린/스켈레톤 등)
-2. 캐릭터 직업/스킬 트리
-3. 드롭 아이템 + 보상 연동(API)
-   중에서 원하는 순서 말해주시면 바로 구현하겠습니다.
+1. 아이템 효과 서버 검증/영속화 정합성 강화
+2. 웨이브 선택 히스토리/즐겨찾기 추가
+3. 클래스별 액티브 스킬 연출(이펙트/사운드) 강화
+4. 전투 HUD 경량화 및 클래스별 쿨다운/피격 연출 세분화

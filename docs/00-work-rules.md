@@ -6,6 +6,7 @@
 
 ## 구현 규칙
 - 기능 구현 시 문서와 코드를 함께 갱신한다.
+- 진행 사항 및 다음 예정 항목 반드시 최신 상태로 갱신한다`docs/10-progress-log.md`
 - DB 스키마 변경이 있으면 반드시 `docs/sql/00_latest_schema.sql`을 최신 상태로 갱신한다.
 - API 변경 시 `docs/api` 및 `docs/api/openapi.yaml`을 함께 갱신한다.
 
