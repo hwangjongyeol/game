@@ -1,4 +1,4 @@
-import { FormEvent, ReactElement, SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { CSSProperties, FormEvent, ReactElement, SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -73,13 +73,14 @@ import {
   addDailyQuestProgress
 } from './api/client';
 import GameContainer from './game/GameContainer';
-import { classSelectOptions } from './game/entities/classes';
+import { classDefinitions, classSelectOptions } from './game/entities/classes';
 import { CharacterClassId } from './game/types';
 
 type ViewTab = 'game' | 'inventory' | 'equipment' | 'quest' | 'companionRecruit' | 'companionManage' | 'companionFuse';
 type SortType = 'rarity' | 'name' | 'quantity';
 type EquipmentSlot = 'weapon' | 'armor' | 'accessory';
 type CompanionSlot = 1 | 2 | 3 | 4 | 5;
+type SkillEffect = 'BREAK_ARMOR' | 'ARCANE_ECHO' | 'VAMPIRIC_SHOT';
 
 const viewTabMeta: Array<{ tab: ViewTab; label: string; icon: ReactElement }> = [
   { tab: 'game', label: '게임', icon: <SportsEsportsRoundedIcon fontSize="small" /> },
@@ -90,6 +91,26 @@ const viewTabMeta: Array<{ tab: ViewTab; label: string; icon: ReactElement }> = 
   { tab: 'companionManage', label: '동료 설정', icon: <GroupsRoundedIcon fontSize="small" /> },
   { tab: 'companionFuse', label: '동료 합성', icon: <ScienceRoundedIcon fontSize="small" /> }
 ];
+
+const tabBackgroundClass: Record<ViewTab, string> = {
+  game: 'bg-game',
+  inventory: 'bg-inventory',
+  equipment: 'bg-equipment',
+  quest: 'bg-quest',
+  companionRecruit: 'bg-recruit',
+  companionManage: 'bg-manage',
+  companionFuse: 'bg-fuse'
+};
+
+const tabHeroArt: Record<ViewTab, string> = {
+  game: '/characters/hero-knight.svg',
+  inventory: '/characters/hero-ranger.svg',
+  equipment: '/characters/hero-knight.svg',
+  quest: '/characters/hero-mage.svg',
+  companionRecruit: '/characters/hero-mage.svg',
+  companionManage: '/characters/hero-ranger.svg',
+  companionFuse: '/characters/monster-skeleton.svg'
+};
 
 const rarityOrder: Record<string, number> = {
   'flame-sword': 5,
@@ -222,6 +243,12 @@ export default function App() {
   const [recruiting, setRecruiting] = useState(false);
   const [assigningCompanionId, setAssigningCompanionId] = useState<number | null>(null);
   const [fusingCompanionId, setFusingCompanionId] = useState<number | null>(null);
+  const [skillCooldown, setSkillCooldown] = useState<{ ratio: number; remainingMs: number; skillName: string; effect: SkillEffect }>({
+    ratio: 1,
+    remainingMs: 0,
+    skillName: classDefinitions[classId].activeSkill.name,
+    effect: classDefinitions[classId].activeSkill.effect
+  });
   const [error, setError] = useState<string | null>(null);
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
@@ -271,6 +298,11 @@ export default function App() {
     if (!account) return;
     void handleLoadPlayers();
   }, [account]);
+
+  useEffect(() => {
+    const skill = classDefinitions[classId].activeSkill;
+    setSkillCooldown((prev) => ({ ...prev, skillName: skill.name, effect: skill.effect }));
+  }, [classId]);
 
   const handleAccountSignUp = async () => {
     setError(null);
@@ -791,10 +823,31 @@ export default function App() {
     }
   };
 
+  const activeSkillIcon = skillCooldown.effect === 'BREAK_ARMOR' ? '⚔' : skillCooldown.effect === 'ARCANE_ECHO' ? '✦' : '➶';
+  const skillSlots = [
+    { key: 'active', icon: activeSkillIcon, name: skillCooldown.skillName, cooldownSec: skillCooldown.remainingMs / 1000, active: true },
+    { key: 'slot2', icon: '🛡', name: 'Guard', cooldownSec: 0, active: false },
+    { key: 'slot3', icon: '❄', name: 'Nova', cooldownSec: 0, active: false },
+    { key: 'slot4', icon: '⚡', name: 'Burst', cooldownSec: 0, active: false },
+    { key: 'slot5', icon: '☄', name: 'Rage', cooldownSec: 0, active: false },
+    { key: 'slot6', icon: '✺', name: 'Aura', cooldownSec: 0, active: false }
+  ];
+  const inBattleLayout = Boolean(player && entered);
+  const overlayPanelVisible = inBattleLayout && viewTab !== 'game';
+
   return (
-    <main className="app-root">
-      <section className="panel">
-        <h1>AutoGame</h1>
+    <main
+      className={`app-root rpg-shell ${entered ? tabBackgroundClass[viewTab] : 'bg-login'} ${inBattleLayout ? 'in-battle-layout' : ''} ${
+        overlayPanelVisible ? 'overlay-panel-visible' : 'overlay-panel-hidden'
+      }`}
+    >
+      <section className={`panel ${inBattleLayout ? 'floating-overlay-panel' : ''}`}>
+        {entered && (
+          <div className="panel-art">
+            <img src={tabHeroArt[viewTab]} alt={`${viewTab}-art`} />
+            <span>{viewTabMeta.find((tab) => tab.tab === viewTab)?.label}</span>
+          </div>
+        )}
         {!account && (
           <div className="form-box">
             <label htmlFor="loginId">계정 ID</label>
@@ -823,7 +876,6 @@ export default function App() {
             <p>
               로그인 계정: {account.loginId} (ID: {account.accountId})
             </p>
-            <p>캐릭터 슬롯: {players.length}/5</p>
           </div>
         )}
 
@@ -896,24 +948,6 @@ export default function App() {
             </p>
             <button onClick={() => setEntered(true)}>게임 입장</button>
           </div>
-        )}
-
-        {player && entered && (
-          <Paper elevation={0} sx={{ mt: 2, backgroundColor: 'rgba(15, 24, 45, 0.78)', border: '1px solid #2e4468' }}>
-            <Tabs
-              value={viewTab}
-              onChange={(_: SyntheticEvent, value: ViewTab) => setViewTab(value)}
-              variant="scrollable"
-              scrollButtons="auto"
-              textColor="inherit"
-              indicatorColor="primary"
-              aria-label="view tabs"
-            >
-              {viewTabMeta.map((tab) => (
-                <Tab key={tab.tab} value={tab.tab} icon={tab.icon} iconPosition="start" label={tab.label} />
-              ))}
-            </Tabs>
-          </Paper>
         )}
 
         {player && entered && viewTab === 'game' && (
@@ -1418,42 +1452,90 @@ export default function App() {
       </section>
 
       {player && entered && characterStats && (
-        <GameContainer
-          key={`${player.id}-${gameSeed}`}
-          playerId={player.id}
-          nickname={player.nickname}
-          classId={classId}
-          startWave={currentWave}
-          waveFxTick={waveFxTick}
-          hidden={viewTab !== 'game'}
-          battleSpeed={battleSpeed}
-          waveLocked={waveLocked}
-          equippedItemIds={equippedItemIds}
-          onMonsterKill={handleMonsterKill}
-          initialInventory={inventory.map((item) => ({
-            itemId: item.itemId,
-            itemName: item.itemName,
-            quantity: item.quantity,
-            upgradeLevel: item.upgradeLevel,
-            attackBonus: item.attackBonus,
-            defenseBonus: item.defenseBonus,
-            hpBonus: item.hpBonus,
-            mpBonus: item.mpBonus
-          }))}
-          activeCompanions={activeCompanions.map((row) => ({
-            id: row.id,
-            companionId: row.companionId,
-            companionName: row.companionName,
-            classId: normalizeClassId(row.classId),
-            slotNo: row.slotNo
-          }))}
-          persistentStats={{
-            attack: characterStats.attack,
-            defense: characterStats.defense,
-            maxHp: characterStats.maxHp,
-            maxMp: characterStats.maxMp
-          }}
-        />
+        <section className="battle-stage-wrap">
+          <header className="battle-topbar">
+            <div className="battle-profile">
+              <img src={`/characters/hero-${classId}.svg`} alt={`${classId}-avatar`} className="battle-avatar" />
+              <div>
+                <strong>{player.nickname}</strong>
+                <p>Lv.{Math.max(1, Math.floor((characterStats.attackLevel + characterStats.defenseLevel) / 2))} / Wave {currentWave}</p>
+              </div>
+            </div>
+            <div className="battle-currency">
+              <span>Gold {wallet?.gold ?? 0}</span>
+              <span>Gem {wallet?.gem ?? 0}</span>
+              <span>Companion {userCompanions.length}</span>
+            </div>
+          </header>
+
+          <GameContainer
+            key={`${player.id}-${gameSeed}`}
+            playerId={player.id}
+            nickname={player.nickname}
+            classId={classId}
+            startWave={currentWave}
+            waveFxTick={waveFxTick}
+            hidden={viewTab !== 'game'}
+            battleSpeed={battleSpeed}
+            waveLocked={waveLocked}
+            equippedItemIds={equippedItemIds}
+            onMonsterKill={handleMonsterKill}
+            initialInventory={inventory.map((item) => ({
+              itemId: item.itemId,
+              itemName: item.itemName,
+              quantity: item.quantity,
+              upgradeLevel: item.upgradeLevel,
+              attackBonus: item.attackBonus,
+              defenseBonus: item.defenseBonus,
+              hpBonus: item.hpBonus,
+              mpBonus: item.mpBonus
+            }))}
+            activeCompanions={activeCompanions.map((row) => ({
+              id: row.id,
+              companionId: row.companionId,
+              companionName: row.companionName,
+              classId: normalizeClassId(row.classId),
+              slotNo: row.slotNo
+            }))}
+            persistentStats={{
+              attack: characterStats.attack,
+              defense: characterStats.defense,
+              maxHp: characterStats.maxHp,
+              maxMp: characterStats.maxMp
+            }}
+            onSkillCooldownUpdate={(event) => {
+              setSkillCooldown({
+                ratio: event.ratio,
+                remainingMs: event.remainingMs,
+                skillName: event.skillName,
+                effect: event.effect
+              });
+            }}
+          />
+
+          <footer className="battle-bottom-nav">
+            {viewTabMeta.map((tab) => (
+              <button key={`bottom-${tab.tab}`} type="button" onClick={() => setViewTab(tab.tab)} className={viewTab === tab.tab ? 'active' : ''}>
+                {tab.label}
+              </button>
+            ))}
+          </footer>
+
+          <div className="battle-skillbar">
+            {skillSlots.map((slot) => (
+              <div
+                key={slot.key}
+                className={`skill-slot ${slot.active ? 'active' : ''}`}
+                style={slot.active ? ({ ['--cooldown-ratio' as string]: `${Math.max(0, Math.min(1, skillCooldown.ratio))}` } as CSSProperties) : undefined}
+              >
+                <span className="skill-icon">{slot.icon}</span>
+                <small>{slot.name}</small>
+                {slot.active && slot.cooldownSec > 0.2 && <em>{slot.cooldownSec.toFixed(1)}</em>}
+                {slot.active && slot.cooldownSec <= 0.2 && <em>READY</em>}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {pendingWave !== null && (

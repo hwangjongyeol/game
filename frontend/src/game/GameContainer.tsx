@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Phaser from 'phaser';
 import { StartGame } from './main';
+import { EventBus } from './EventBus';
 import { ActiveCompanionSession, CharacterClassId, PersistentCharacterStats, SessionInventoryItem } from './types';
 
 type Props = {
@@ -23,6 +24,12 @@ type Props = {
     currentWave: number;
     nextWave: number;
   }) => void;
+  onSkillCooldownUpdate?: (event: {
+    ratio: number;
+    remainingMs: number;
+    skillName: string;
+    effect: 'BREAK_ARMOR' | 'ARCANE_ECHO' | 'VAMPIRIC_SHOT';
+  }) => void;
 };
 
 export default function GameContainer({
@@ -38,14 +45,17 @@ export default function GameContainer({
   initialInventory,
   activeCompanions,
   equippedItemIds,
-  onMonsterKill
+  onMonsterKill,
+  onSkillCooldownUpdate
 }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const onMonsterKillRef = useRef<Props['onMonsterKill']>(onMonsterKill);
+  const onSkillCooldownUpdateRef = useRef<Props['onSkillCooldownUpdate']>(onSkillCooldownUpdate);
   const gameRef = useRef<Phaser.Game | null>(null);
   const [waveFxClass, setWaveFxClass] = useState('');
 
   onMonsterKillRef.current = onMonsterKill;
+  onSkillCooldownUpdateRef.current = onSkillCooldownUpdate;
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -140,6 +150,29 @@ export default function GameContainer({
   }, [activeCompanions]);
 
   useEffect(() => {
+    const handler = (payload: {
+      playerId: number;
+      ratio: number;
+      remainingMs: number;
+      skillName: string;
+      effect: 'BREAK_ARMOR' | 'ARCANE_ECHO' | 'VAMPIRIC_SHOT';
+    }) => {
+      if (payload.playerId !== playerId) return;
+      onSkillCooldownUpdateRef.current?.({
+        ratio: payload.ratio,
+        remainingMs: payload.remainingMs,
+        skillName: payload.skillName,
+        effect: payload.effect
+      });
+    };
+
+    EventBus.on('skill-cooldown-update', handler);
+    return () => {
+      EventBus.off('skill-cooldown-update', handler);
+    };
+  }, [playerId]);
+
+  useEffect(() => {
     if (!waveFxTick) return;
     setWaveFxClass('wave-switch-anim');
     const timer = window.setTimeout(() => setWaveFxClass(''), 420);
@@ -148,12 +181,6 @@ export default function GameContainer({
 
   return (
     <section className={`game-shell ${waveFxClass} ${hidden ? 'game-shell-hidden' : ''}`.trim()}>
-      <header className="game-head">
-        <strong>{nickname}</strong>
-        <span>
-          #{playerId} / {classId}
-        </span>
-      </header>
       <div ref={hostRef} className="game-stage" />
     </section>
   );

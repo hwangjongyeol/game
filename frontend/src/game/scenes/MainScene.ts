@@ -1080,8 +1080,16 @@ export class MainScene extends Phaser.Scene {
     if (!this.rexSkillCooldownRing?.setValue || !this.heroSkillTimer) return;
     const progress = Phaser.Math.Clamp(this.heroSkillTimer.getProgress(), 0, 1);
     this.rexSkillCooldownRing.setValue(1 - progress);
+    const remainingMs = Math.max(0, this.classDef.activeSkill.cooldownMs * (1 - progress));
+    EventBus.emit('skill-cooldown-update', {
+      playerId: this.session.playerId,
+      ratio: 1 - progress,
+      remainingMs,
+      skillName: this.classDef.activeSkill.name,
+      effect: this.classDef.activeSkill.effect
+    });
     if (this.rexSkillCooldownText) {
-      const remainSec = (this.classDef.activeSkill.cooldownMs * (1 - progress)) / 1000;
+      const remainSec = remainingMs / 1000;
       this.rexSkillCooldownText.setText(remainSec <= 0.2 ? 'READY' : remainSec.toFixed(1));
     }
   }
