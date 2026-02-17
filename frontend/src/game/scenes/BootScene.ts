@@ -11,12 +11,13 @@ export class BootScene extends Phaser.Scene {
 
   preload(): void {
     for (let i = 1; i <= 10; i += 1) {
-      this.load.image(`dungeon-bg-${i}`, `/dungeons/dungeon-${i}.png`);
+      const ext = i <= 6 ? 'png' : 'svg';
+      this.load.image(`dungeon-bg-${i}`, `/dungeons/dungeon-${i}.${ext}`);
     }
     const backgroundPaths = Array.from(
       new Set(
         (this.session.waveRuntimeConfig?.waveGroupScalings ?? [])
-          .map((row) => row.backgroundImagePath?.trim())
+          .map((row) => this.normalizeBackgroundPath(row.backgroundImagePath))
           .filter((path): path is string => Boolean(path))
       )
     );
@@ -35,5 +36,13 @@ export class BootScene extends Phaser.Scene {
 
   private runtimeBgKey(path: string): string {
     return `wave-group-bg-${path.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  }
+
+  private normalizeBackgroundPath(path: string | null | undefined): string | null {
+    if (!path) return null;
+    const trimmed = path.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('/')) return trimmed;
+    return `/${trimmed}`;
   }
 }

@@ -89,6 +89,8 @@ export class MainScene extends Phaser.Scene {
   private rexSkillCooldownRing?: any;
   private rexSkillCooldownText?: Phaser.GameObjects.Text;
   private heroSkillTimer?: Phaser.Time.TimerEvent;
+  private lastLogAt = 0;
+  private lastLogText = '';
 
   private currentWave = 1;
   private heroLevel = 1;
@@ -187,7 +189,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private drawDungeonBackground(width: number, height: number): void {
-    this.backgroundImage = this.add.image(width / 2, height / 2, '__WHITE').setTint(0x000000).setDisplaySize(width, height);
+    this.backgroundImage = this.add.image(width / 2, height / 2, 'dungeon-bg-1').setDisplaySize(width, height);
   }
 
   private drawUnits(width: number, height: number): void {
@@ -209,23 +211,9 @@ export class MainScene extends Phaser.Scene {
       color: '#ddffdf'
     });
 
-    this.tweens.add({
-      targets: this.heroBody,
-      y: this.heroBody.y - 6,
-      duration: 560,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
-    this.tweens.add({
-      targets: this.monsterBody,
-      y: this.monsterBody.y - 8,
-      duration: 640,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
+    // 상하 부유 연출 제거: 화면이 위로 이동하는 체감 방지
+    this.tweens.killTweensOf(this.heroBody);
+    this.tweens.killTweensOf(this.monsterBody);
   }
 
   private createHud(width: number, height: number): void {
@@ -464,7 +452,7 @@ export class MainScene extends Phaser.Scene {
     }
     if (!this.hero.isAlive()) {
       this.playHeroDeathAnimation();
-      this.pushLog(`패배: Wave ${this.currentWave} 유지됨. R로 재전투`);
+      this.pushLog(`패배: Wave ${this.currentWave} 유지됨. R로 재전투`, true);
       this.refreshHud();
     } else {
       this.refreshHud();
@@ -485,7 +473,6 @@ export class MainScene extends Phaser.Scene {
     this.gainExp(reward.exp);
     this.defeatedInWave += 1;
     const waveCleared = this.defeatedInWave >= this.monstersPerWave;
-    const remain = Math.max(0, this.monstersPerWave - this.defeatedInWave);
     this.session.onMonsterKill?.({
       killDelta: 1,
       goldEarned: reward.gold,
@@ -497,11 +484,10 @@ export class MainScene extends Phaser.Scene {
 
     this.time.delayedCall(1200, () => {
       if (waveCleared) {
-        this.pushLog(`Wave ${this.currentWave} 클리어 (${this.monstersPerWave}마리) / +${reward.gold}G +${reward.gem}Gem`);
+        this.pushLog(`Wave ${this.currentWave} 클리어 (${this.monstersPerWave}마리) / +${reward.gold}G +${reward.gem}Gem`, true);
         this.hero.reset();
         this.playHeroBattleAnimation();
         if (this.waveLocked) {
-          this.pushLog(`Wave ${this.currentWave} 고정 전투 재시작`);
           this.spawnMonsterByWave(this.currentWave);
         } else {
           const nextWave = this.currentWave + 1;
@@ -509,9 +495,6 @@ export class MainScene extends Phaser.Scene {
           this.spawnMonsterByWave(this.currentWave);
         }
       } else {
-        this.pushLog(
-          `승리: ${this.monsterDef.name} 처치 / +${reward.gold}G +${reward.gem}Gem / 남은 몬스터 ${remain}마리`
-        );
         this.spawnNextMonsterInWave();
         this.playHeroBattleAnimation();
       }
@@ -683,7 +666,7 @@ export class MainScene extends Phaser.Scene {
       await syncDungeonLoot(this.session.playerId, lootPayload);
     } catch (e) {
       const msg = e instanceof Error ? e.message : '보상 API 동기화 실패';
-      this.pushLog(`주의: ${msg}`);
+      this.pushLog(`주의: ${msg}`, true);
     }
   }
 
@@ -720,7 +703,6 @@ export class MainScene extends Phaser.Scene {
     this.monstersPerWave = runtimeQueue.length > 0 ? runtimeQueue.length : this.resolveMonstersPerWave(wave);
     this.defeatedInWave = 0;
     this.spawnNextMonsterInWave();
-    this.showWaveBanner(wave);
   }
 
   private spawnNextMonsterInWave(): void {
@@ -767,15 +749,13 @@ export class MainScene extends Phaser.Scene {
     this.currentDungeonIndex = dungeonIndex;
     if (this.waveRuntimeConfig) {
       const { waveGroupNo } = this.resolveWavePattern(wave);
-      const backgroundImagePath = this.waveGroupScalingByNo.get(waveGroupNo)?.backgroundImagePath?.trim();
+      const backgroundImagePath = this.normalizeBackgroundPath(this.waveGroupScalingByNo.get(waveGroupNo)?.backgroundImagePath);
       if (backgroundImagePath) {
         this.applyWaveGroupBackground(backgroundImagePath);
         return;
       }
-      this.backgroundImage.setTexture('__WHITE').setTint(0x000000);
-      return;
     }
-    this.backgroundImage.setTexture(`dungeon-bg-${dungeonIndex}`);
+    this.backgroundImage.clearTint().setTexture(`dungeon-bg-${dungeonIndex}`);
   }
 
   private applyWaveGroupBackground(path: string): void {
@@ -783,6 +763,8 @@ export class MainScene extends Phaser.Scene {
     if (existingKey) {
       if (this.textures.exists(existingKey)) {
         this.backgroundImage.clearTint().setTexture(existingKey);
+      } else {
+        this.ensureWaveBackgroundLoaded(path, existingKey);
       }
       return;
     }
@@ -791,13 +773,31 @@ export class MainScene extends Phaser.Scene {
     this.waveBackgroundKeyByPath.set(path, textureKey);
     if (this.textures.exists(textureKey)) {
       this.backgroundImage.clearTint().setTexture(textureKey);
-    } else {
-      this.backgroundImage.setTexture('__WHITE').setTint(0x000000);
+      return;
     }
+    this.ensureWaveBackgroundLoaded(path, textureKey);
   }
 
   private runtimeBgKey(path: string): string {
     return `wave-group-bg-${path.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+  }
+
+  private normalizeBackgroundPath(path: string | null | undefined): string | null {
+    if (!path) return null;
+    const trimmed = path.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('/')) return trimmed;
+    return `/${trimmed}`;
+  }
+
+  private ensureWaveBackgroundLoaded(path: string, textureKey: string): void {
+    this.load.once(`filecomplete-image-${textureKey}`, () => {
+      if (this.textures.exists(textureKey)) {
+        this.backgroundImage.clearTint().setTexture(textureKey);
+      }
+    });
+    this.load.image(textureKey, path);
+    this.load.start();
   }
 
   private createHeroAvatar(x: number, y: number): Phaser.GameObjects.Container {
@@ -909,7 +909,7 @@ export class MainScene extends Phaser.Scene {
   private playHeroBattleAnimation(): void {
     const heroKind = (this.classDef.id === 'knight' ? 'warrior' :
                      this.classDef.id === 'ranger' ? 'archer' : 'mage') as SpritePackKey;
-    this.heroSprite.play(`${heroKind}-battle`, true);
+    this.playLoopAnimationIfNeeded(this.heroSprite, `${heroKind}-battle`);
     this.playCompanionBattleAnimation();
   }
 
@@ -926,7 +926,7 @@ export class MainScene extends Phaser.Scene {
       if (!companion) return;
       const kind = (companion.classId === 'knight' ? 'warrior' :
                    companion.classId === 'ranger' ? 'archer' : 'mage') as SpritePackKey;
-      sprite.play(`${kind}-battle`, true);
+      this.playLoopAnimationIfNeeded(sprite, `${kind}-battle`);
     });
   }
 
@@ -948,9 +948,16 @@ export class MainScene extends Phaser.Scene {
   }
 
   private playMonsterBattleAnimation(kind: SpritePackKey): void {
-    this.monsterSprite.play(`${kind}-battle`, true);
+    this.playLoopAnimationIfNeeded(this.monsterSprite, `${kind}-battle`);
     const frame = this.frameIndexFromBlock(SPRITE_BLOCKS[kind], 0, 0);
     this.monsterSupportSprites.forEach((sprite) => sprite.setFrame(frame));
+  }
+
+  private playLoopAnimationIfNeeded(sprite: Phaser.GameObjects.Sprite, key: string): void {
+    if (sprite.anims.currentAnim?.key === key && sprite.anims.isPlaying) {
+      return;
+    }
+    sprite.play(key, true);
   }
 
   private playMonsterDeathAnimation(kind: SpritePackKey): void {
@@ -1106,7 +1113,14 @@ export class MainScene extends Phaser.Scene {
     return '효과 없음';
   }
 
-  private pushLog(text: string): void {
+  private pushLog(text: string, force = false): void {
+    const now = this.time.now;
+    if (!force) {
+      if (text === this.lastLogText) return;
+      if (now - this.lastLogAt < 800) return;
+    }
+    this.lastLogAt = now;
+    this.lastLogText = text;
     this.logText.setText(text);
     this.tweens.killTweensOf(this.logText);
     this.tweens.add({

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" monitorInterval="60">
+    <Properties>
+        <Property name="LOG_PATH">${env:LOG_PATH:-logs}</Property>
+        <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p [%t] %c{1.} - %m%n</Property>
+
+        <Property name="ROOT_LOG_LEVEL">${env:ROOT_LOG_LEVEL:-ERROR}</Property>
+        <Property name="APP_LOG_LEVEL">${env:APP_LOG_LEVEL:-ERROR}</Property>
+        <Property name="SPRING_LOG_LEVEL">${env:SPRING_LOG_LEVEL:-ERROR}</Property>
+        <Property name="HIBERNATE_LOG_LEVEL">${env:HIBERNATE_LOG_LEVEL:-ERROR}</Property>
+        <Property name="HIKARI_LOG_LEVEL">${env:HIKARI_LOG_LEVEL:-ERROR}</Property>
+    </Properties>
+
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="${LOG_PATTERN}" />
+        </Console>
+
+        <RollingFile
+                name="File"
+                fileName="${LOG_PATH}/application.log"
+                filePattern="${LOG_PATH}/application-%d{yyyy-MM-dd}-%i.log.gz">
+            <PatternLayout pattern="${LOG_PATTERN}" />
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true" />
+                <SizeBasedTriggeringPolicy size="20 MB" />
+            </Policies>
+            <DefaultRolloverStrategy max="14" />
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="com.hwang" level="${APP_LOG_LEVEL}" additivity="false">
+            <AppenderRef ref="Console" />
+            <AppenderRef ref="File" />
+        </Logger>
+        <Logger name="org.springframework" level="${SPRING_LOG_LEVEL}" />
+        <Logger name="org.hibernate" level="${HIBERNATE_LOG_LEVEL}" />
+        <Logger name="com.zaxxer.hikari" level="${HIKARI_LOG_LEVEL}" />
+
+        <Root level="${ROOT_LOG_LEVEL}">
+            <AppenderRef ref="Console" />
+            <AppenderRef ref="File" />
+        </Root>
+    </Loggers>
+</Configuration>

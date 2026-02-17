@@ -14,7 +14,8 @@ export const createGameConfig = (parent: string, session: GameSession): Phaser.T
     backgroundColor: '#121726',
     scale: {
       mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH
+      // Keep canvas vertically anchored to avoid Y jumping during UI/layout updates.
+      autoCenter: Phaser.Scale.CENTER_HORIZONTALLY
     },
     physics: {
       default: 'arcade',

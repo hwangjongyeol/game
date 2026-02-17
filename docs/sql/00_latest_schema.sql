@@ -3,10 +3,6 @@
 -- 목적: 신규 DB(빈 스키마)에 최신 구조를 한 번에 생성
 -- 주의: 기존 운영 데이터가 있는 DB에는 백업 후 적용하세요.
 
-echo 'export PATH="$(brew --prefix mysql-client)/bin:$PATH"' >> ~/.zprofile
-source ~/.zprofile
- mysql -u sysbatch -p sys_batch < docs/sql/24_add_wave_group_background_image_path.sql
-
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;

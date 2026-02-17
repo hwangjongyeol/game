@@ -3,6 +3,18 @@
 ## 2026-02-17
 
 ### 완료
+- backend DB/로깅 성능 설정 조정
+  - `log4jdbc-log4j2` 의존성 제거 및 JDBC URL/Driver를 기본 MySQL(`jdbc:mysql`, `com.mysql.cj.jdbc.Driver`)로 전환
+  - 로깅 프레임워크를 `spring-boot-starter-log4j2`로 적용하고 `root` 로그 레벨을 `ERROR`로 설정
+  - `log4j2-spring.xml` 추가: Console + RollingFile appender 적용(일 단위/용량 기준 롤링)
+  - 패키지별 로그 레벨 환경변수화(`ROOT_LOG_LEVEL`, `APP_LOG_LEVEL`, `SPRING_LOG_LEVEL`, `HIBERNATE_LOG_LEVEL`, `HIKARI_LOG_LEVEL`)
+  - Spring 프로필 분리 적용: `application.yml`(공통) + `application-local.yml` + `application-prd.yml`
+  - 기본 활성 프로필 `local`, 운영 프로필 `prd`는 `SPRING_PROFILES_ACTIVE=prd`와 `DB_URL/DB_USERNAME/DB_PASSWORD` 환경변수로 구동
+- 웨이브 시작 화면 상승 연출 제거
+  - 전투 씬 웨이브 시작 시 호출되던 배너 이벤트(`showWaveBanner`)를 비활성화하여 화면이 올라가는 체감 제거
+  - 웨이브 시작/재시작 시 전투 스프라이트 애니메이션 강제 재생을 방지해 점프성 화면 튐 완화
+  - Phaser 스케일 `autoCenter`를 `CENTER_BOTH` -> `CENTER_HORIZONTALLY`로 변경해 캔버스 세로 위치 흔들림 방지
+  - 전투 로그를 요약 모드로 조정(처치 단위 로그 제거 + 로그 스로틀)하여 전투 중 로그 과다로 인한 체감 저하 완화
 - 웨이브 패턴/배수 DB 구조화 (요청 1/2/3)
   - `wave_settings`를 `slotNo` 포함 구조로 확장하여 동일 웨이브 내 다중 몬스터(n종) 설정 지원
   - `waveNo`를 패턴 웨이브(1~100)로 고정: `1-1 ~ 10-10` 구성
@@ -39,6 +51,11 @@
   - Admin/Runtime API에 `backgroundImagePath` 필드 반영
   - 전투 씬 배경을 웨이브 그룹별 이미지 경로 기준으로 동적 로드(없으면 기존 dungeon 배경 fallback)
   - 신규 SQL: `docs/sql/24_add_wave_group_background_image_path.sql`
+
+### 다음 예정
+- 운영 환경 로그량 기준으로 패키지별 로그 레벨 환경변수(`*_LOG_LEVEL`) 값 튜닝
+- 배포 스크립트/런타임에 `SPRING_PROFILES_ACTIVE` 및 `DB_*` 환경변수 주입 점검
+- 웨이브 시작 연출(배너/효과) 옵션화 여부 검토
 
 ## 2026-02-16
 

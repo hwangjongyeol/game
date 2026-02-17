@@ -130,6 +130,10 @@ function normalizeClassId(classId: string | null | undefined): CharacterClassId 
   return (classId ?? '').trim().toLowerCase();
 }
 
+function lastPlayerStorageKey(accountId: number): string {
+  return `autogame.lastPlayerId.${accountId}`;
+}
+
 function toWaveLabel(wave: number): string {
   const group = Math.floor((Math.max(1, wave) - 1) / 10) + 1;
   const sub = ((Math.max(1, wave) - 1) % 10) + 1;
@@ -223,6 +227,7 @@ export default function App() {
       const created = await createPlayer(account.accountId, trimmed, classId);
       setPlayer(created);
       setEntered(true);
+      window.localStorage.setItem(lastPlayerStorageKey(account.accountId), String(created.id));
       setClassId(normalizeClassId(created.classId));
     } catch (e) {
       setError(e instanceof Error ? e.message : '계정 생성 실패');
@@ -269,6 +274,19 @@ export default function App() {
     void handleLoadPlayers();
   }, [account]);
 
+  useEffect(() => {
+    if (!account) return;
+    if (player) return;
+    if (players.length <= 0) return;
+    const raw = window.localStorage.getItem(lastPlayerStorageKey(account.accountId));
+    const preferredId = raw ? Number(raw) : Number.NaN;
+    const next = players.find((row) => !Number.isNaN(preferredId) && row.id === preferredId) ?? players[0];
+    setPlayer(next);
+    setEntered(true);
+    setClassId(normalizeClassId(next.classId));
+    window.localStorage.setItem(lastPlayerStorageKey(account.accountId), String(next.id));
+  }, [account, players, player]);
+
   const handleAccountSignUp = async () => {
     setError(null);
     try {
@@ -305,6 +323,7 @@ export default function App() {
       if (player?.id === target.id) {
         setPlayer(null);
         setEntered(false);
+        window.localStorage.removeItem(lastPlayerStorageKey(account.accountId));
       }
       const list = await getPlayersByAccount(account.accountId);
       setPlayers(list);
@@ -897,6 +916,9 @@ export default function App() {
                         onClick={() => {
                           setPlayer(item);
                           setEntered(true);
+                          if (account) {
+                            window.localStorage.setItem(lastPlayerStorageKey(account.accountId), String(item.id));
+                          }
                           setClassId(normalizeClassId(item.classId));
                         }}
                       >

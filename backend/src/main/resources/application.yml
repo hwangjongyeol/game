@@ -1,11 +1,8 @@
 spring:
   application:
     name: autoGame
-  datasource:
-    url: "jdbc:log4jdbc:mysql://127.0.0.1:3306/sys_batch?autoReconnect=true&useUnicode=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
-    username: sysbatch
-    password: "q1w2e3r4T%"
-    driver-class-name: net.sf.log4jdbc.sql.jdbcapi.DriverSpy
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   jpa:
     hibernate:
       ddl-auto: validate
