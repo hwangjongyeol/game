@@ -10,5 +10,5 @@ mysql -u sysbatch -p sys_batch < docs/sql/00_latest_schema.sql
 ```
 
 ## 이력 파일
-- `01_init_schema.sql` ~ `24_add_wave_group_background_image_path.sql` 은 단계별 마이그레이션 이력입니다.
+- `01_init_schema.sql` ~ `27_seed_render_profiles_sprite_pack_new_3x3.sql` 은 단계별 마이그레이션 이력입니다.
 - 신규 세팅은 이력 파일 순차 실행 대신 `00_latest_schema.sql` 사용을 권장합니다.

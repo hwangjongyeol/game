@@ -3,6 +3,43 @@
 ## 2026-02-17
 
 ### 완료
+- 캐릭터 렌더 프로필(JSON) 기반 확장 1차
+  - DB 컬럼 추가: `character_class_masters`, `monster_masters`, `companion_masters`에 `render_profile_json` 추가
+  - 신규 SQL: `docs/sql/25_add_render_profile_json_columns.sql`
+  - 공개/Admin API 응답/요청에 `renderProfileJson` 반영
+  - 웨이브 런타임 응답 엔트리에 `monsterRenderProfileJson` 추가
+  - 전투 씬이 `renderProfileJson`을 우선 사용하고, 누락 시 기존 클래스/몬스터 fallback 좌표를 사용하도록 보강
+  - `deathFrames` 미설정 시 `battleFrames`를 재사용하도록 fallback 처리(현재 7개 이미지셋 대응)
+  - Admin 화면(class/monster/companion)에서 `renderProfileJson` 직접 입력(멀티라인 JSON) 지원
+  - `sprite-pack.png(1536x1024)` 기준 프레임 계산을 12열 인덱스로 보정하여 전투 애니메이션 정상 재생
+  - 스프라이트 좌표 가이드 문서 추가: `docs/11-sprite-pack-coordinates.md`
+  - 7캐릭터 좌표 시드 SQL 추가: `docs/sql/26_seed_render_profiles_sprite_pack_7chars.sql`
+  - 게임 스테이지/쉘 배경을 불투명 색상으로 고정하여 잔여 투명도 체감 완화
+  - `sprite-pack` 체크 배경을 런타임에서 자동 투명 처리하도록 `BootScene` 텍스처 후처리 추가
+  - 주인공 스프라이트 표시 크기/오프셋 보정(`MainScene.createHeroAvatar`): 머리/몸통만 보이던 현상 완화
+  - 전투 타격 시 좌우 흔들림(`playStrikeTween`) 제거: 캐릭터 전후 흔들 애니메이션 비활성화
+  - `sprite-pack` 투명 처리 안정화: 코너 샘플 4지점 기반 체크배경 판별로 흰색 잔여 배경 완화
+  - 주인공/동료/몬스터 스프라이트 Y 오프셋 공통 상향(약 6px): 상단 빈 픽셀 여백 보정
+  - 전체 캐릭터 정렬 재보정: Y 오프셋을 전역 상수(`UNIT_SPRITE_Y_SHIFT`)로 통합하고 기본 기준값으로 복원
+  - 캐릭터 깨짐 보정(`docs/image/img_2.png` 기준): 투명 처리 로직을 외곽 연결 배경만 제거(flood-fill) 방식으로 교체하여 캐릭터 본체 픽셀 손실 완화
+  - 전투/죽음 애니메이션 FPS 전역 상수화(`BATTLE_ANIM_FPS`, `DEATH_ANIM_FPS`) 및 키 시그니처에 FPS 포함하여 캐시 재사용으로 인한 속도 미반영 문제 보정
+  - 인접 프레임 블리딩 보정: Phaser 렌더 설정(`pixelArt`, `roundPixels`, `antialias:false`) 및 `sprite-pack` 텍스처 `NEAREST` 필터 적용
+  - 전투 하단 미니 메뉴에 `로그아웃` 버튼 추가: `/api/v1/accounts/logout` 호출 후 계정/캐릭터/뷰 상태 초기화
+  - 캐릭터 변경 반영 안정화: `GameContainer` 전달 클래스 키를 `activeClassId`로 단일화하고 `classRenderProfileJson` 조회 키와 동일하게 맞춤
+  - 로그인 후 캐릭터 자동 진입 제거: 계정 로그인 시 캐릭터 목록에서 직접 선택하도록 흐름 고정
+  - 주인공/몬스터 비정상 프레임 fallback 보정: JSON 누락/파싱 실패 시 타입별 기본 프레임(`DEFAULT_PROFILE_FRAMES`) 적용
+  - 캐릭터 선택 UX 재보정: 리로드 시 `lastPlayerId` 저장값이 있을 때만 자동 복원, 저장값이 없으면 선택 화면 유지
+  - 신규 시트 `frontend/public/sprite-pack-new.png` 적용
+  - 시트 인덱스 계산을 시트 너비 기반 자동 전환으로 보정: `frame = (blockRow*3+localRow)*sheetColumns + (blockCol*3+localCol)`
+  - 좌표 해석을 3x3 block 규칙(`global = block*3 + local`)으로 통일하고 기본 battle/death 프레임을 6+3 규칙으로 정렬
+  - 8열/12열 듀얼 대응 기본 블록 맵(`SPRITE_BLOCKS_NARROW`, `SPRITE_BLOCKS_WIDE`) 분리 및 런타임 자동 선택
+  - 좌표 가이드 문서(`docs/11-sprite-pack-coordinates.md`)를 운영본+확장본 공통 기준으로 갱신
+  - DB 반영 SQL 추가: `docs/sql/27_seed_render_profiles_sprite_pack_new_3x3.sql` (클래스/몬스터/동료 `render_profile_json` 좌표 일괄 업데이트)
+  - `MainScene.ts` 기능 분리 1차: 스프라이트 좌표/프로필/애니메이션 로직을 `frontend/src/game/scenes/mainScene/spriteProfile.ts` 모듈로 분리
+  - `MainScene.ts` 기능 분리 2차: 웨이브 런타임/보상 배수/아이템 효과 텍스트 로직을 `frontend/src/game/scenes/mainScene/waveRuntime.ts` 모듈로 분리
+  - `MainScene.ts` 기능 분리 3차: HUD 스타일/스킬 HUD 테마/HUD 텍스트 조합 로직을 `frontend/src/game/scenes/mainScene/hud.ts` 모듈로 분리
+  - 스프라이트 설정을 DB 우선 강제: `render_profile_json` 누락/오류 시 하드코딩 블록 맵 fallback 제거, 경고 로그 출력 후 emergency profile(0,0 단일 프레임)만 사용
+  - 좌표 디버깅 지원: 주인공/동료/몬스터의 적용 `render_profile_json`(block, battle/deathFrames)을 브라우저 콘솔에 출력
 - backend DB/로깅 성능 설정 조정
   - `log4jdbc-log4j2` 의존성 제거 및 JDBC URL/Driver를 기본 MySQL(`jdbc:mysql`, `com.mysql.cj.jdbc.Driver`)로 전환
   - 로깅 프레임워크를 `spring-boot-starter-log4j2`로 적용하고 `root` 로그 레벨을 `ERROR`로 설정
@@ -10,11 +47,14 @@
   - 패키지별 로그 레벨 환경변수화(`ROOT_LOG_LEVEL`, `APP_LOG_LEVEL`, `SPRING_LOG_LEVEL`, `HIBERNATE_LOG_LEVEL`, `HIKARI_LOG_LEVEL`)
   - Spring 프로필 분리 적용: `application.yml`(공통) + `application-local.yml` + `application-prd.yml`
   - 기본 활성 프로필 `local`, 운영 프로필 `prd`는 `SPRING_PROFILES_ACTIVE=prd`와 `DB_URL/DB_USERNAME/DB_PASSWORD` 환경변수로 구동
+  - 글로벌 예외 처리기(`GlobalExceptionHandler`)에 서버 에러 로깅 추가: 500 응답 시 `log.error`로 URI+stacktrace를 기록하도록 보강
+  - `GET /api/v1/waves/runtime/{dungeonId}` 500(NPE) 수정: `WaveRuntimeService`에서 `render_profile_json`이 `null`인 몬스터도 처리되도록 `Collectors.toMap` 제거 및 null-safe 맵 수집으로 교체
 - 웨이브 시작 화면 상승 연출 제거
   - 전투 씬 웨이브 시작 시 호출되던 배너 이벤트(`showWaveBanner`)를 비활성화하여 화면이 올라가는 체감 제거
   - 웨이브 시작/재시작 시 전투 스프라이트 애니메이션 강제 재생을 방지해 점프성 화면 튐 완화
   - Phaser 스케일 `autoCenter`를 `CENTER_BOTH` -> `CENTER_HORIZONTALLY`로 변경해 캔버스 세로 위치 흔들림 방지
   - 전투 로그를 요약 모드로 조정(처치 단위 로그 제거 + 로그 스로틀)하여 전투 중 로그 과다로 인한 체감 저하 완화
+  - 전투 스프라이트 소스를 `/characters/img_1.png`에서 `/sprite-pack.png`로 전환
 - 웨이브 패턴/배수 DB 구조화 (요청 1/2/3)
   - `wave_settings`를 `slotNo` 포함 구조로 확장하여 동일 웨이브 내 다중 몬스터(n종) 설정 지원
   - `waveNo`를 패턴 웨이브(1~100)로 고정: `1-1 ~ 10-10` 구성
@@ -55,6 +95,7 @@
 ### 다음 예정
 - 운영 환경 로그량 기준으로 패키지별 로그 레벨 환경변수(`*_LOG_LEVEL`) 값 튜닝
 - 배포 스크립트/런타임에 `SPRING_PROFILES_ACTIVE` 및 `DB_*` 환경변수 주입 점검
+- 렌더 프로필 2차: 8방향 이동/스킬/죽음 전용 프레임 세트 스키마 확장
 - 웨이브 시작 연출(배너/효과) 옵션화 여부 검토
 
 ## 2026-02-16

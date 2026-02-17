@@ -8,6 +8,7 @@ type Props = {
   playerId: number;
   nickname: string;
   classId: CharacterClassId;
+  classRenderProfileJson?: string | null;
   startWave?: number;
   hidden?: boolean;
   battleSpeed?: 1 | 2 | 3;
@@ -36,6 +37,7 @@ export default function GameContainer({
   playerId,
   nickname,
   classId,
+  classRenderProfileJson,
   startWave,
   hidden,
   battleSpeed,
@@ -66,6 +68,7 @@ export default function GameContainer({
       playerId,
       nickname,
       classId,
+      classRenderProfileJson,
       startWave,
       initialBattleSpeed: battleSpeed ?? 1,
       waveLocked,
@@ -81,7 +84,7 @@ export default function GameContainer({
       gameRef.current = null;
       game.destroy(true);
     };
-  }, [playerId, nickname, classId, waveRuntimeConfig]);
+  }, [playerId, nickname, classId, classRenderProfileJson, waveRuntimeConfig]);
 
   useEffect(() => {
     const game = gameRef.current;

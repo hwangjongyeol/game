@@ -385,7 +385,7 @@ button:disabled {
 .game-shell {
   border-radius: 18px;
   border: 1px solid var(--line-0);
-  background: linear-gradient(180deg, rgba(33, 24, 16, 0.92), rgba(18, 13, 10, 0.94));
+  background: #140e0a;
   box-shadow: inset 0 1px 0 rgba(198, 225, 255, 0.05), 0 28px 56px rgba(0, 0, 0, 0.36);
   padding: 12px;
   display: grid;
@@ -413,9 +413,7 @@ button:disabled {
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid rgba(85, 121, 186, 0.34);
-  background-image: url('/dungeons/dungeon-1.png');
-  background-position: center;
-  background-size: cover;
+  background: #0b1018;
 }
 
 .battle-stage-wrap {

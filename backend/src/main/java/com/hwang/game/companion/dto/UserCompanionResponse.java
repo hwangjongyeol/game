@@ -17,7 +17,8 @@ public record UserCompanionResponse(
         long defense,
         long hp,
         long mp,
-        String imageUrl
+        String imageUrl,
+        String renderProfileJson
 ) {
     public static UserCompanionResponse from(UserCompanionEntity user, CompanionMasterEntity master) {
         long scale = Math.max(1, user.getLevel());
@@ -35,7 +36,8 @@ public record UserCompanionResponse(
                 (master != null ? master.getBaseDefense() : 0L) * scale,
                 (master != null ? master.getBaseHp() : 0L) * scale,
                 (master != null ? master.getBaseMp() : 0L) * scale,
-                master != null ? master.getImageUrl() : ""
+                master != null ? master.getImageUrl() : "",
+                master != null ? master.getRenderProfileJson() : null
         );
     }
 }

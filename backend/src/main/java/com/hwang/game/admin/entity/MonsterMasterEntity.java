@@ -49,6 +49,9 @@ public class MonsterMasterEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active;
 
+    @Column(name = "render_profile_json", columnDefinition = "LONGTEXT")
+    private String renderProfileJson;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -133,6 +136,10 @@ public class MonsterMasterEntity {
         return active;
     }
 
+    public String getRenderProfileJson() {
+        return renderProfileJson;
+    }
+
     public void setMonsterName(String monsterName) {
         this.monsterName = monsterName;
     }
@@ -175,5 +182,9 @@ public class MonsterMasterEntity {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public void setRenderProfileJson(String renderProfileJson) {
+        this.renderProfileJson = renderProfileJson;
     }
 }

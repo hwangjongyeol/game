@@ -112,6 +112,16 @@ const validateJsonText = (value: string) => {
   }
 };
 
+const validateJsonOrEmpty = (value: string) => {
+  if (!value || !value.trim()) return undefined;
+  try {
+    JSON.parse(value);
+    return undefined;
+  } catch {
+    return 'invalid json';
+  }
+};
+
 const CopyJsonButton = ({ json }: { json: string }) => {
   const notify = useNotify();
   return (
@@ -192,6 +202,7 @@ const ClassMastersCreate = () => (
       <NumberInput source="baseDefense" validate={requiredNonNegative('baseDefense')} />
       <NumberInput source="baseHp" validate={requiredPositive('baseHp')} />
       <NumberInput source="baseMp" validate={requiredPositive('baseMp')} />
+      <TextInput source="renderProfileJson" multiline minRows={8} fullWidth validate={validateJsonOrEmpty} />
       <BooleanInput source="active" defaultValue />
     </SimpleForm>
   </Create>
@@ -205,6 +216,7 @@ const ClassMastersEdit = () => (
       <NumberInput source="baseDefense" validate={requiredNonNegative('baseDefense')} />
       <NumberInput source="baseHp" validate={requiredPositive('baseHp')} />
       <NumberInput source="baseMp" validate={requiredPositive('baseMp')} />
+      <TextInput source="renderProfileJson" multiline minRows={8} fullWidth validate={validateJsonOrEmpty} />
       <BooleanInput source="active" />
     </SimpleForm>
   </Edit>
@@ -321,6 +333,7 @@ const MonstersCreate = () => (
       <NumberInput source="rewardExp" />
       <NumberInput source="rewardScore" />
       <TextInput source="spriteKey" />
+      <TextInput source="renderProfileJson" multiline minRows={8} fullWidth validate={validateJsonOrEmpty} />
       <BooleanInput source="active" defaultValue />
     </SimpleForm>
   </Create>
@@ -339,6 +352,7 @@ const MonstersEdit = () => (
       <NumberInput source="rewardExp" />
       <NumberInput source="rewardScore" />
       <TextInput source="spriteKey" />
+      <TextInput source="renderProfileJson" multiline minRows={8} fullWidth validate={validateJsonOrEmpty} />
       <BooleanInput source="active" />
     </SimpleForm>
   </Edit>
@@ -621,6 +635,7 @@ const CompanionMastersCreate = () => (
       <NumberInput source="baseHp" validate={requiredNonNegative('baseHp')} />
       <NumberInput source="baseMp" validate={requiredNonNegative('baseMp')} />
       <TextInput source="imageUrl" />
+      <TextInput source="renderProfileJson" multiline minRows={8} fullWidth validate={validateJsonOrEmpty} />
       <NumberInput source="recruitWeight" validate={requiredPositive('recruitWeight')} />
       <BooleanInput source="active" defaultValue />
     </SimpleForm>
@@ -638,6 +653,7 @@ const CompanionMastersEdit = () => (
       <NumberInput source="baseHp" validate={requiredNonNegative('baseHp')} />
       <NumberInput source="baseMp" validate={requiredNonNegative('baseMp')} />
       <TextInput source="imageUrl" />
+      <TextInput source="renderProfileJson" multiline minRows={8} fullWidth validate={validateJsonOrEmpty} />
       <NumberInput source="recruitWeight" validate={requiredPositive('recruitWeight')} />
       <BooleanInput source="active" />
     </SimpleForm>

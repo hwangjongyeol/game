@@ -45,6 +45,20 @@
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
 
+### 3-1) `character_class_masters`
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| class_id | VARCHAR(20) | PK | 클래스 코드 |
+| class_name | VARCHAR(60) | NOT NULL | 클래스 이름 |
+| base_attack | INT | NOT NULL | 기본 공격 |
+| base_defense | INT | NOT NULL | 기본 방어 |
+| base_hp | INT | NOT NULL | 기본 HP |
+| base_mp | INT | NOT NULL | 기본 MP |
+| render_profile_json | LONGTEXT | NULL | 렌더/애니메이션 프로필 JSON |
+| is_active | TINYINT(1) | INDEX | 사용 여부 |
+| created_at | DATETIME | NOT NULL | 생성일 |
+| updated_at | DATETIME | NOT NULL | 수정일 |
+
 ### 4) `wallets`
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
@@ -201,6 +215,7 @@
 | reward_exp | INT | NOT NULL | 기본 경험치 보상 |
 | reward_score | INT | NOT NULL | 기본 점수 보상 |
 | sprite_key | VARCHAR(50) | NOT NULL | 스프라이트 키 |
+| render_profile_json | LONGTEXT | NULL | 렌더/애니메이션 프로필 JSON |
 | is_active | TINYINT(1) | INDEX | 사용 여부 |
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
@@ -235,6 +250,7 @@
 | base_hp | INT | NOT NULL | 기본 HP |
 | base_mp | INT | NOT NULL | 기본 MP |
 | image_url | VARCHAR(255) | NOT NULL | 동료 이미지 경로 |
+| render_profile_json | LONGTEXT | NULL | 렌더/애니메이션 프로필 JSON |
 | recruit_weight | INT | NOT NULL | 뽑기 가중치 |
 | is_active | TINYINT(1) | NOT NULL | 사용 여부 |
 | created_at | DATETIME | NOT NULL | 생성일 |

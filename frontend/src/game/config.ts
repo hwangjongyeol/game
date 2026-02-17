@@ -10,6 +10,9 @@ export const createGameConfig = (parent: string, session: GameSession): Phaser.T
     parent,
     width: 1280,
     height: 720,
+    pixelArt: true,
+    antialias: false,
+    roundPixels: true,
     scene: [new BootScene(session), new MainScene()],
     backgroundColor: '#121726',
     scale: {

@@ -12,6 +12,7 @@ public record AdminCompanionMasterResponse(
         int baseHp,
         int baseMp,
         String imageUrl,
+        String renderProfileJson,
         int recruitWeight,
         boolean active
 ) {
@@ -26,6 +27,7 @@ public record AdminCompanionMasterResponse(
                 entity.getBaseHp(),
                 entity.getBaseMp(),
                 entity.getImageUrl(),
+                entity.getRenderProfileJson(),
                 entity.getRecruitWeight(),
                 entity.isActive()
         );

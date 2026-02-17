@@ -5,47 +5,97 @@ import { resolveDungeonIndexFromWave, resolveMonstersPerWaveFromBalance, resolve
 import { ITEM_PASSIVE_BONUS, CONSUMABLE_EFFECT, calcSetBonus, getLegacyEquipBonus } from '../balance/equipmentBalance';
 import { calcBasicAttack, canUseSkill } from '../combat/formulas';
 import { rollCoreDrops, rollEquipmentDrop } from '../combat/reward';
-import { getClassDefinitions, ClassDefinition } from '../entities/classes';
+import { getClassDefinitions, ClassDefinition, SkillNode } from '../entities/classes';
 import { Fighter } from '../entities/Fighter';
 import { getDungeon1Monsters, DropItem, MonsterDefinition } from '../entities/monsters';
 import { EventBus } from '../EventBus';
-import {
-  FramePoint,
-  SpriteBlock,
-  ensureProfileAnimations,
-  frameIndexFromBlock,
-  getSheetColumns,
-  resolveProfileFromJson
-} from './mainScene/spriteProfile';
 import {
   ActiveCompanionSession,
   GameSession,
   PersistentCharacterStats,
   WaveGroupScalingRuntime,
   WavePatternRuntime,
-  WaveRuntimeConfig
+  WaveRuntimeConfig,
+  WaveRuntimeEntry
 } from '../types';
-import {
-  RuntimeSpawnEntry,
-  getItemEffectHint,
-  resolveCurrentRewardMultiplier,
-  resolveRuntimeSpawnQueue,
-  resolveWaveLabel,
-  resolveWavePattern
-} from './mainScene/waveRuntime';
-import { buildHudText, hudStyle, resolveSkillHudTheme } from './mainScene/hud';
 
 type InventoryEntry = {
   itemId: string;
   itemName: string;
   quantity: number;
 };
-type ResolvedRenderProfile = {
-  block: SpriteBlock;
-  battleFrames: FramePoint[];
-  deathFrames: FramePoint[];
+
+type SpritePackKey = 'warrior' | 'mage' | 'archer' | 'slime' | 'orc' | 'dragon';
+type FramePoint = [number, number];
+type SpriteBlock = { col: number; row: number };
+type SpriteRenderProfile = {
+  spritePackKey?: SpritePackKey;
+  block?: SpriteBlock;
+  battleFrames?: Array<FramePoint | { c?: number; r?: number }>;
+  deathFrames?: Array<FramePoint | { c?: number; r?: number }>;
+};
+type RuntimeSpawnEntry = {
+  monsterId: string;
+  monsterRenderProfileJson?: string | null;
+  hpMultiplier: number;
+  mpMultiplier: number;
+  attackMultiplier: number;
+  defenseMultiplier: number;
+  rewardGoldMultiplier: number;
+  rewardGemMultiplier: number;
 };
 
+const SPRITE_BLOCKS_NARROW: Record<SpritePackKey, { col: number; row: number }> = {
+  warrior: { col: 0, row: 0 },
+  archer: { col: 1, row: 0 },
+  mage: { col: 0, row: 1 },
+  slime: { col: 1, row: 1 },
+  orc: { col: 0, row: 2 },
+  dragon: { col: 1, row: 2 }
+};
+const SPRITE_BLOCKS_WIDE: Record<SpritePackKey, { col: number; row: number }> = {
+  warrior: { col: 0, row: 0 },
+  archer: { col: 1, row: 0 },
+  mage: { col: 2, row: 0 },
+  slime: { col: 0, row: 4 },
+  orc: { col: 3, row: 5 },
+  dragon: { col: 0, row: 7 }
+};
+const DEFAULT_BATTLE_FRAMES: FramePoint[] = [
+  [0, 0], [1, 0], [2, 0], [3, 0],
+  [0, 1], [1, 1], [2, 1], [3, 1]
+];
+const DEFAULT_DEATH_FRAMES: FramePoint[] = [[0, 2], [1, 2], [2, 2]];
+const FRAME_SIZE = 128;
+const BLOCK_SIZE = 3;
+const DEFAULT_PROFILE_FRAMES: Record<SpritePackKey, { battle: FramePoint[]; death?: FramePoint[] }> = {
+  warrior: {
+    battle: [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
+    death: [[0, 2], [1, 2], [2, 2]]
+  },
+  mage: {
+    battle: [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
+    death: [[0, 2], [1, 2], [2, 2]]
+  },
+  archer: {
+    battle: [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
+    death: [[0, 2], [1, 2], [2, 2]]
+  },
+  slime: {
+    battle: [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
+    death: [[0, 2], [1, 2], [2, 2]]
+  },
+  orc: {
+    battle: [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
+    death: [[0, 2], [1, 2], [2, 2]]
+  },
+  dragon: {
+    battle: [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
+    death: [[0, 2], [1, 2], [2, 2]]
+  }
+};
+const BATTLE_ANIM_FPS = 6;
+const DEATH_ANIM_FPS = 2;
 const UNIT_SPRITE_Y_SHIFT = 0;
 const HERO_SPRITE_Y = -58 + UNIT_SPRITE_Y_SHIFT;
 const COMPANION_SPRITE_Y = -72 + UNIT_SPRITE_Y_SHIFT;
@@ -54,11 +104,6 @@ const MONSTER_SUPPORT1_Y = -78 + UNIT_SPRITE_Y_SHIFT;
 const MONSTER_SUPPORT2_Y = -76 + UNIT_SPRITE_Y_SHIFT;
 const MONSTER_SUPPORT3_Y = -50 + UNIT_SPRITE_Y_SHIFT;
 const MONSTER_SUPPORT4_Y = -48 + UNIT_SPRITE_Y_SHIFT;
-const EMERGENCY_PROFILE = {
-  block: { col: 0, row: 0 },
-  battleFrames: [[0, 0]] as FramePoint[],
-  deathFrames: [[0, 0]] as FramePoint[]
-};
 
 export class MainScene extends Phaser.Scene {
   private session!: GameSession;
@@ -135,7 +180,6 @@ export class MainScene extends Phaser.Scene {
   private resolvingVictory = false;
   private battleSpeed = 1;
   private appliedPersistentStats?: PersistentCharacterStats;
-  private missingRenderProfileLogged = new Set<string>();
 
   constructor() {
     super('MainScene');
@@ -173,6 +217,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.drawDungeonBackground(width, height);
+    this.createSpritePackAnimations();
     this.drawUnits(width, height);
     this.createHud(width, height);
     this.bindInput();
@@ -238,15 +283,15 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createHud(width: number, height: number): void {
-    this.heroInfoText = this.add.text(30, 16, '', hudStyle());
-    this.heroHpText = this.add.text(30, 42, '', hudStyle());
-    this.heroMpText = this.add.text(30, 68, '', hudStyle());
-    this.monsterHpText = this.add.text(width - 320, 20, '', hudStyle());
-    this.monsterMpText = this.add.text(width - 320, 46, '', hudStyle());
+    this.heroInfoText = this.add.text(30, 16, '', this.hudStyle());
+    this.heroHpText = this.add.text(30, 42, '', this.hudStyle());
+    this.heroMpText = this.add.text(30, 68, '', this.hudStyle());
+    this.monsterHpText = this.add.text(width - 320, 20, '', this.hudStyle());
+    this.monsterMpText = this.add.text(width - 320, 46, '', this.hudStyle());
 
-    this.skillTreeText = this.add.text(30, 102, '', { ...hudStyle(), fontSize: '15px', color: '#d4f2ff' });
+    this.skillTreeText = this.add.text(30, 102, '', { ...this.hudStyle(), fontSize: '15px', color: '#d4f2ff' });
     this.inventoryText = this.add.text(width - 320, 88, '', {
-      ...hudStyle(),
+      ...this.hudStyle(),
       fontSize: '15px',
       color: '#ffefbf',
       wordWrap: { width: 300 }
@@ -281,7 +326,7 @@ export class MainScene extends Phaser.Scene {
   private createRexUiHud(width: number, height: number): void {
     const rexUI = (this as any).rexUI;
     if (!rexUI?.add?.label || !rexUI?.add?.roundRectangleProgress) return;
-    const skillHudTheme = resolveSkillHudTheme(this.classDef.id);
+    const skillHudTheme = this.resolveSkillHudTheme();
 
     this.rexHeroHpText = this.add.text(width - 330, height - 150, 'Hero HP', {
       fontFamily: 'Verdana',
@@ -719,7 +764,7 @@ export class MainScene extends Phaser.Scene {
 
   private spawnMonsterByWave(wave: number): void {
     this.applyDungeonTheme(wave);
-    const runtimeQueue = resolveRuntimeSpawnQueue(wave, this.waveRuntimeConfig, this.wavePatternByNo);
+    const runtimeQueue = this.resolveRuntimeSpawnQueue(wave);
     this.runtimeSpawnQueue = runtimeQueue;
     this.monstersPerWave = runtimeQueue.length > 0 ? runtimeQueue.length : this.resolveMonstersPerWave(wave);
     this.defeatedInWave = 0;
@@ -738,12 +783,7 @@ export class MainScene extends Phaser.Scene {
       ? dungeon1Monsters.find((row) => row.id === runtimeSpawn.monsterId) ?? dungeon1Monsters[0]
       : dungeon1Monsters[(this.currentWave + sequence - 2) % dungeon1Monsters.length];
     const scaledStats = this.resolveScaledMonsterStats(base.stats, this.currentWave, sequence);
-    const rewardMultiplier = resolveCurrentRewardMultiplier(
-      runtimeSpawn,
-      this.currentWave,
-      this.waveRuntimeConfig,
-      this.waveGroupScalingByNo
-    );
+    const rewardMultiplier = this.resolveCurrentRewardMultiplier(runtimeSpawn, this.currentWave);
     this.monsterDef = {
       ...base,
       stats: scaledStats,
@@ -755,34 +795,29 @@ export class MainScene extends Phaser.Scene {
       }
     };
     this.monster = new Fighter(this.monsterDef.name, this.monsterDef.stats);
-    const waveLabel = resolveWaveLabel(this.currentWave, this.waveRuntimeConfig);
+    const waveLabel = this.resolveWaveLabel(this.currentWave);
 
     this.monsterNameText.setText(
       `D${this.currentDungeonIndex} ${this.monsterDef.name} [Wave ${waveLabel}] (${sequence}/${this.monstersPerWave})`
     );
-    const monsterProfile = this.resolveRequiredProfile(
-      this.currentRuntimeSpawn?.monsterRenderProfileJson,
-      `monster:${this.monsterDef.id}`
-    );
-    this.logRenderProfile(`monster:${this.monsterDef.id}`, monsterProfile);
-    const monsterAnimations = ensureProfileAnimations(
-      this,
+    const defaultMonsterKind = this.resolveDefaultMonsterKind(this.monsterDef.id);
+    const monsterProfile = this.resolveProfileFromJson(this.currentRuntimeSpawn?.monsterRenderProfileJson, defaultMonsterKind);
+    const monsterAnimations = this.ensureProfileAnimations(
       `monster-${this.monsterDef.id}`,
       monsterProfile.block,
       monsterProfile.battleFrames,
-      monsterProfile.deathFrames,
-      getSheetColumns(this)
+      monsterProfile.deathFrames
     );
     this.monsterBattleAnimKey = monsterAnimations.battleKey;
     this.monsterDeathAnimKey = monsterAnimations.deathKey;
-    this.monsterBaseFrame = frameIndexFromBlock(monsterProfile.block, 0, 0, getSheetColumns(this));
+    this.monsterBaseFrame = this.frameIndexFromBlock(monsterProfile.block, 0, 0);
     this.monsterSprite.setTexture('sprite-pack', this.monsterBaseFrame);
     this.playMonsterBattleAnimation();
     this.refreshMonsterSupportSprites();
   }
 
   private showWaveBanner(wave: number): void {
-    const waveLabel = resolveWaveLabel(wave, this.waveRuntimeConfig);
+    const waveLabel = this.resolveWaveLabel(wave);
     this.waveBannerText.setText(`DUNGEON ${this.currentDungeonIndex}  WAVE ${waveLabel}`).setAlpha(1).setScale(1).setY(34);
     this.tweens.killTweensOf(this.waveBannerText);
   }
@@ -791,7 +826,7 @@ export class MainScene extends Phaser.Scene {
     const dungeonIndex = resolveDungeonIndexFromWave(wave);
     this.currentDungeonIndex = dungeonIndex;
     if (this.waveRuntimeConfig) {
-      const { waveGroupNo } = resolveWavePattern(wave, this.waveRuntimeConfig);
+      const { waveGroupNo } = this.resolveWavePattern(wave);
       const backgroundImagePath = this.normalizeBackgroundPath(this.waveGroupScalingByNo.get(waveGroupNo)?.backgroundImagePath);
       if (backgroundImagePath) {
         this.applyWaveGroupBackground(backgroundImagePath);
@@ -843,54 +878,16 @@ export class MainScene extends Phaser.Scene {
     this.load.start();
   }
 
-  private resolveRequiredProfile(raw: string | null | undefined, target: string): ResolvedRenderProfile {
-    const parsed = resolveProfileFromJson(raw, getSheetColumns(this));
-    if (parsed && this.isProfileInTextureRange(parsed)) return parsed;
-    if (!this.missingRenderProfileLogged.has(target)) {
-      this.missingRenderProfileLogged.add(target);
-      this.pushLog(`render_profile_json 누락/오류: ${target}`, true);
-    }
-    return EMERGENCY_PROFILE;
-  }
-
-  private isProfileInTextureRange(profile: ResolvedRenderProfile): boolean {
-    const texture = this.textures.get('sprite-pack');
-    const source = texture?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
-    const cols = Math.max(1, Math.floor((source?.width ?? 1024) / 128));
-    const rows = Math.max(1, Math.floor((source?.height ?? 1536) / 128));
-    const frames = [...profile.battleFrames, ...profile.deathFrames];
-    if (frames.length === 0) return false;
-    return frames.every(([c, r]) => {
-      const globalCol = profile.block.col * 3 + c;
-      const globalRow = profile.block.row * 3 + r;
-      return globalCol >= 0 && globalCol < cols && globalRow >= 0 && globalRow < rows;
-    });
-  }
-
-  private logRenderProfile(target: string, profile: ResolvedRenderProfile): void {
-    console.log(`[render-profile] ${target}`, {
-      sheetColumns: getSheetColumns(this),
-      block: profile.block,
-      battleFrames: profile.battleFrames,
-      deathFrames: profile.deathFrames
-    });
-  }
-
   private createHeroAvatar(x: number, y: number): Phaser.GameObjects.Container {
-    const heroProfile = this.resolveRequiredProfile(this.session.classRenderProfileJson, `class:${this.classDef.id}`);
-    this.logRenderProfile(`hero:${this.classDef.id}`, heroProfile);
-    const heroAnimations = ensureProfileAnimations(
-      this,
-      'hero',
-      heroProfile.block,
-      heroProfile.battleFrames,
-      heroProfile.deathFrames,
-      getSheetColumns(this)
+    const heroProfile = this.resolveProfileFromJson(
+      this.session.classRenderProfileJson,
+      this.resolveDefaultHeroKind(this.classDef.id)
     );
+    const heroAnimations = this.ensureProfileAnimations('hero', heroProfile.block, heroProfile.battleFrames, heroProfile.deathFrames);
     this.heroBattleAnimKey = heroAnimations.battleKey;
     this.heroDeathAnimKey = heroAnimations.deathKey;
     this.heroSprite = this.add
-      .sprite(0, HERO_SPRITE_Y, 'sprite-pack', frameIndexFromBlock(heroProfile.block, 0, 0, getSheetColumns(this)))
+      .sprite(0, HERO_SPRITE_Y, 'sprite-pack', this.frameIndexFromBlock(heroProfile.block, 0, 0))
       .setDisplaySize(124, 146)
       .setOrigin(0.5, 0.5);
     return this.add.container(x, y, [this.heroSprite]);
@@ -917,19 +914,12 @@ export class MainScene extends Phaser.Scene {
       const col = idx % 3;
       const x = baseX + (col - 1) * spacingX + row * 30;
       const y = baseY + row * spacingY;
-      const profile = this.resolveRequiredProfile(companion.renderProfileJson, `companion:${companion.id}`);
-      this.logRenderProfile(`companion:${companion.companionId}`, profile);
-      const anim = ensureProfileAnimations(
-        this,
-        `companion-${companion.id}`,
-        profile.block,
-        profile.battleFrames,
-        profile.deathFrames,
-        getSheetColumns(this)
-      );
+      const fallbackKind = this.resolveDefaultHeroKind(companion.classId);
+      const profile = this.resolveProfileFromJson(companion.renderProfileJson, fallbackKind);
+      const anim = this.ensureProfileAnimations(`companion-${companion.id}`, profile.block, profile.battleFrames, profile.deathFrames);
 
       const sprite = this.add
-        .sprite(0, COMPANION_SPRITE_Y, 'sprite-pack', frameIndexFromBlock(profile.block, 0, 0, getSheetColumns(this)))
+        .sprite(0, COMPANION_SPRITE_Y, 'sprite-pack', this.frameIndexFromBlock(profile.block, 0, 0))
         .setDisplaySize(132, 156)
         .setOrigin(0.5, 0.5)
         .setAlpha(0.95);
@@ -944,6 +934,147 @@ export class MainScene extends Phaser.Scene {
         color: '#e6f6ff'
       });
     });
+  }
+
+  private createSpritePackAnimations(): void {
+    (Object.keys(DEFAULT_PROFILE_FRAMES) as SpritePackKey[]).forEach((kind) => {
+      const profile = DEFAULT_PROFILE_FRAMES[kind];
+      const death = profile.death ?? profile.battle.slice(0, Math.min(3, profile.battle.length));
+      this.ensureProfileAnimations(kind, this.resolveDefaultBlock(kind), profile.battle, death);
+    });
+  }
+
+  private resolveDefaultHeroKind(classId: string): SpritePackKey {
+    const normalized = classId.trim().toLowerCase();
+    if (normalized === 'ranger') return 'archer';
+    if (normalized === 'mage') return 'mage';
+    return 'warrior';
+  }
+
+  private resolveDefaultMonsterKind(monsterId: string): SpritePackKey {
+    const normalized = monsterId.trim().toLowerCase();
+    if (normalized.includes('dragon')) return 'dragon';
+    if (normalized.includes('orc') || normalized.includes('goblin')) return 'orc';
+    return 'slime';
+  }
+
+  private resolveProfileFromJson(raw: string | null | undefined, fallbackKind: SpritePackKey): {
+    block: SpriteBlock;
+    battleFrames: FramePoint[];
+    deathFrames: FramePoint[];
+  } {
+    const fallbackBlock = this.resolveDefaultBlock(fallbackKind);
+    const fallbackBattle = DEFAULT_PROFILE_FRAMES[fallbackKind]?.battle ?? DEFAULT_BATTLE_FRAMES;
+    const fallbackDeath = DEFAULT_PROFILE_FRAMES[fallbackKind]?.death ?? fallbackBattle.slice(0, Math.min(3, fallbackBattle.length));
+    if (!raw || !raw.trim()) {
+      return {
+        block: fallbackBlock,
+        battleFrames: fallbackBattle,
+        deathFrames: fallbackDeath
+      };
+    }
+    try {
+      const parsed = JSON.parse(raw) as SpriteRenderProfile;
+      const keyBlock = parsed?.spritePackKey ? this.resolveDefaultBlock(parsed.spritePackKey) : undefined;
+      const profileBlock = parsed?.block;
+      const block: SpriteBlock =
+        profileBlock && Number.isFinite(profileBlock.col) && Number.isFinite(profileBlock.row)
+          ? { col: Math.max(0, Math.floor(profileBlock.col)), row: Math.max(0, Math.floor(profileBlock.row)) }
+          : keyBlock ?? fallbackBlock;
+      const battleFrames = this.normalizeFramePoints(parsed?.battleFrames, fallbackBattle);
+      const deathFrames = parsed?.deathFrames
+        ? this.normalizeFramePoints(parsed.deathFrames, battleFrames.slice(0, 3))
+        : battleFrames.slice(0, Math.min(3, battleFrames.length));
+      return {
+        block,
+        battleFrames,
+        deathFrames: deathFrames.length > 0 ? deathFrames : battleFrames.slice(0, 3)
+      };
+    } catch {
+      return {
+        block: fallbackBlock,
+        battleFrames: fallbackBattle,
+        deathFrames: fallbackDeath
+      };
+    }
+  }
+
+  private normalizeFramePoints(
+    values: Array<FramePoint | { c?: number; r?: number }> | undefined,
+    fallback: FramePoint[]
+  ): FramePoint[] {
+    if (!values || values.length === 0) return fallback;
+    const points = values
+      .map((point) => {
+        if (Array.isArray(point)) {
+          const [c, r] = point;
+          if (!Number.isFinite(c) || !Number.isFinite(r)) return null;
+          return [Math.max(0, Math.floor(c)), Math.max(0, Math.floor(r))] as FramePoint;
+        }
+        const c = point?.c;
+        const r = point?.r;
+        if (!Number.isFinite(c) || !Number.isFinite(r)) return null;
+        return [Math.max(0, Math.floor(c as number)), Math.max(0, Math.floor(r as number))] as FramePoint;
+      })
+      .filter((v): v is FramePoint => Array.isArray(v));
+    return points.length > 0 ? points : fallback;
+  }
+
+  private ensureProfileAnimations(
+    prefix: string,
+    block: SpriteBlock,
+    battleFrames: FramePoint[],
+    deathFrames: FramePoint[]
+  ): { battleKey: string; deathKey: string } {
+    const frameSig = `${block.col}_${block.row}_${battleFrames.flat().join('_')}_${deathFrames.flat().join('_')}`;
+    const fpsSig = `${BATTLE_ANIM_FPS}_${DEATH_ANIM_FPS}`;
+    const battleKey = `${prefix}-battle-${frameSig}-${fpsSig}`;
+    if (!this.anims.exists(battleKey)) {
+      this.anims.create({
+        key: battleKey,
+        frames: this.createFramesFromBlock(block, battleFrames),
+        frameRate: BATTLE_ANIM_FPS,
+        repeat: -1
+      });
+    }
+    const deathKey = `${prefix}-death-${frameSig}-${fpsSig}`;
+    if (!this.anims.exists(deathKey)) {
+      this.anims.create({
+        key: deathKey,
+        frames: this.createFramesFromBlock(block, deathFrames),
+        frameRate: DEATH_ANIM_FPS,
+        repeat: 0
+      });
+    }
+    return { battleKey, deathKey };
+  }
+
+  private frameIndexFromBlock(
+    block: { col: number; row: number },
+    localCol: number,
+    localRow: number
+  ): number {
+    const globalCol = block.col * BLOCK_SIZE + localCol;
+    const globalRow = block.row * BLOCK_SIZE + localRow;
+    return globalRow * this.getSheetColumns() + globalCol;
+  }
+
+  private getSheetColumns(): number {
+    const texture = this.textures.get('sprite-pack');
+    const source = texture?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
+    const width = source?.width ?? 1024;
+    return Math.max(1, Math.floor(width / FRAME_SIZE));
+  }
+
+  private resolveDefaultBlock(kind: SpritePackKey): SpriteBlock {
+    return this.getSheetColumns() >= 12 ? SPRITE_BLOCKS_WIDE[kind] : SPRITE_BLOCKS_NARROW[kind];
+  }
+
+  private createFramesFromBlock(
+    block: { col: number; row: number },
+    indices: Array<[number, number]>
+  ): Phaser.Types.Animations.AnimationFrame[] {
+    return indices.map(([c, r]) => ({ key: 'sprite-pack', frame: this.frameIndexFromBlock(block, c, r) }));
   }
 
   private playHeroBattleAnimation(): void {
@@ -965,7 +1096,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private createMonsterAvatar(x: number, y: number): Phaser.GameObjects.Container {
-    const baseFrame = frameIndexFromBlock(EMERGENCY_PROFILE.block, 0, 0, getSheetColumns(this));
+    const baseFrame = this.frameIndexFromBlock(this.resolveDefaultBlock('slime'), 0, 0);
     this.monsterSprite = this.add
       .sprite(0, MONSTER_MAIN_SPRITE_Y, 'sprite-pack', baseFrame)
       .setDisplaySize(180, 212)
@@ -1092,23 +1223,18 @@ export class MainScene extends Phaser.Scene {
   }
 
   private refreshHud(): void {
-    const waveLabel = resolveWaveLabel(this.currentWave, this.waveRuntimeConfig);
-    const texts = buildHudText({
-      nickname: this.session.nickname,
-      heroLevel: this.heroLevel,
-      classLabel: this.classDef.label,
-      waveLabel,
-      hero: this.hero,
-      monster: this.monster,
-      defeatedInWave: this.defeatedInWave,
-      monstersPerWave: this.monstersPerWave,
-      battleSpeed: this.battleSpeed
-    });
-    this.heroInfoText.setText(texts.heroInfo);
-    this.heroHpText.setText(texts.heroHp);
-    this.heroMpText.setText(texts.heroMp);
-    this.monsterHpText.setText(texts.monsterHp);
-    this.monsterMpText.setText(texts.monsterMp);
+    this.heroInfoText.setText(
+      `${this.session.nickname} Lv.${this.heroLevel} (${this.classDef.label})  Wave ${this.resolveWaveLabel(this.currentWave)}`
+    );
+    this.heroHpText.setText(`Hero HP ${this.hero.state.hp}/${this.hero.stats.maxHp}  ATK ${this.hero.stats.attack}`);
+    this.heroMpText.setText(`Hero MP ${this.hero.state.mp}/${this.hero.stats.maxMp}  DEF ${this.hero.stats.defense}`);
+
+    this.monsterHpText.setText(
+      `Monster HP ${this.monster.state.hp}/${this.monster.stats.maxHp}  (${this.defeatedInWave + 1}/${this.monstersPerWave})`
+    );
+    this.monsterMpText.setText(
+      `Monster MP ${this.monster.state.mp}/${this.monster.stats.maxMp}  DEF ${this.monster.stats.defense}`
+    );
 
     //this.skillTreeText.setText(this.formatSkillTreeText(this.classDef.skillTree));
     //this.inventoryText.setText(this.formatInventoryText());
@@ -1117,8 +1243,17 @@ export class MainScene extends Phaser.Scene {
 
     const labelText = (this.rexHudLabel as any)?.getElement?.('text');
     if (labelText?.setText) {
-      labelText.setText(texts.rexLabel);
+      labelText.setText(`RexUI Combat HUD / ${this.battleSpeed}x / Wave ${this.resolveWaveLabel(this.currentWave)}`);
     }
+  }
+
+  private formatSkillTreeText(skillTree: SkillNode[]): string {
+    const lines = skillTree.map((skill, idx) => {
+      const key = idx + 1;
+      const unlocked = this.unlockedSkillIds.has(skill.id) ? '해금' : '잠김';
+      return `[${key}] ${skill.name} (Lv.${skill.requiredLevel}) ${unlocked}`;
+    });
+    return `스킬트리\n${lines.join('\n')}`;
   }
 
   private formatInventoryText(): string {
@@ -1126,13 +1261,27 @@ export class MainScene extends Phaser.Scene {
 
     const lines = Array.from(this.inventory.values())
       .map((entry) => {
-        const effect = getItemEffectHint(entry.itemId);
+        const effect = this.getItemEffectHint(entry.itemId);
         const lv = this.itemUpgradeLevels.get(entry.itemId) ?? 0;
         return `- ${entry.itemName} +${lv} x${entry.quantity} (${effect})`;
       })
       .slice(0, 8);
 
     return `인벤토리\n${lines.join('\n')}`;
+  }
+
+  private getItemEffectHint(itemId: string): string {
+    if (itemId === 'slime-gel') return '즉시 HP +15';
+    if (itemId === 'minor-potion') return '즉시 HP/MP 회복';
+    if (itemId === 'rusty-dagger') return '장착형/강화형 무기';
+    if (itemId === 'goblin-coin') return '3개당 DEF +1';
+    if (itemId === 'bone-fragment') return '영구 MaxHP +8';
+    if (itemId === 'ancient-core') return '영구 MaxMP +10, ATK +2';
+    if (itemId === 'flame-sword') return '장착형/강화형 무기';
+    if (itemId === 'iron-helm') return '장착형/강화형 방어구';
+    if (itemId === 'guardian-charm') return '장착형/강화형 장신구';
+    if (itemId === 'hunter-ring') return '장착형/강화형 장신구';
+    return '효과 없음';
   }
 
   private pushLog(text: string, force = false): void {
@@ -1164,6 +1313,16 @@ export class MainScene extends Phaser.Scene {
   private setRexBarValue(bar: any, ratio: number): void {
     if (!bar?.setValue) return;
     bar.setValue(Phaser.Math.Clamp(ratio, 0, 1));
+  }
+
+  private resolveSkillHudTheme(): { barColor: number; trackColor: number; textColor: string; iconText: string } {
+    if (this.classDef.id === 'knight') {
+      return { barColor: 0x5ec4ff, trackColor: 0x1d3550, textColor: '#d9f2ff', iconText: 'BRK' };
+    }
+    if (this.classDef.id === 'mage') {
+      return { barColor: 0xcd8bff, trackColor: 0x332049, textColor: '#f1ddff', iconText: 'ARC' };
+    }
+    return { barColor: 0x7dffa0, trackColor: 0x1f3a2b, textColor: '#dbffe8', iconText: 'RPD' };
   }
 
   private refreshSkillCooldownHud(): void {
@@ -1237,12 +1396,7 @@ export class MainScene extends Phaser.Scene {
     sequence: number
   ): { maxHp: number; maxMp: number; attack: number; defense: number } {
     if (this.currentRuntimeSpawn) {
-      const merged = resolveCurrentRewardMultiplier(
-        this.currentRuntimeSpawn,
-        wave,
-        this.waveRuntimeConfig,
-        this.waveGroupScalingByNo
-      );
+      const merged = this.resolveCurrentRewardMultiplier(this.currentRuntimeSpawn, wave);
       return {
         maxHp: Math.max(1, Math.floor(base.maxHp * merged.hpMultiplier)),
         maxMp: Math.max(1, Math.floor(base.maxMp * merged.mpMultiplier)),
@@ -1253,10 +1407,99 @@ export class MainScene extends Phaser.Scene {
     return resolveScaledMonsterStatsFromBalance(base, wave, sequence);
   }
 
+  private resolveRuntimeSpawnQueue(wave: number): RuntimeSpawnEntry[] {
+    if (!this.waveRuntimeConfig) {
+      return [];
+    }
+    const mapping = this.resolveWavePattern(wave);
+    const pattern = this.wavePatternByNo.get(mapping.patternWaveNo);
+    const entries = [...(pattern?.entries ?? [])]
+      .filter((row) => row.monsterCount > 0)
+      .sort((a, b) => a.slotNo - b.slotNo);
+    if (entries.length === 0) {
+      return [];
+    }
+    const queue: RuntimeSpawnEntry[] = [];
+    entries.forEach((entry) => {
+      for (let i = 0; i < Math.max(1, entry.monsterCount); i += 1) {
+        queue.push(this.toRuntimeSpawnEntry(entry));
+      }
+    });
+    return queue;
+  }
+
+  private toRuntimeSpawnEntry(entry: WaveRuntimeEntry): RuntimeSpawnEntry {
+    return {
+      monsterId: entry.monsterId,
+      monsterRenderProfileJson: entry.monsterRenderProfileJson,
+      hpMultiplier: Math.max(0.01, entry.hpMultiplier),
+      mpMultiplier: Math.max(0.01, entry.mpMultiplier),
+      attackMultiplier: Math.max(0.01, entry.attackMultiplier),
+      defenseMultiplier: Math.max(0.01, entry.defenseMultiplier),
+      rewardGoldMultiplier: Math.max(0.01, entry.rewardGoldMultiplier),
+      rewardGemMultiplier: Math.max(0.01, entry.rewardGemMultiplier)
+    };
+  }
+
+  private resolveWavePattern(wave: number): { waveGroupNo: number; subWaveNo: number; patternWaveNo: number } {
+    const groupSize = Math.max(1, this.waveRuntimeConfig?.patternGroupSize ?? 10);
+    const subWaveSize = Math.max(1, this.waveRuntimeConfig?.subWaveSize ?? 10);
+    const waveGroupNo = Math.floor((wave - 1) / subWaveSize) + 1;
+    const subWaveNo = ((wave - 1) % subWaveSize) + 1;
+    const patternGroupNo = ((waveGroupNo - 1) % groupSize) + 1;
+    const patternWaveNo = (patternGroupNo - 1) * subWaveSize + subWaveNo;
+    return { waveGroupNo, subWaveNo, patternWaveNo };
+  }
+
+  private resolveWaveLabel(wave: number): string {
+    if (!this.waveRuntimeConfig) {
+      return String(wave);
+    }
+    const { waveGroupNo, subWaveNo } = this.resolveWavePattern(wave);
+    return `${waveGroupNo}-${subWaveNo}`;
+  }
+
+  private resolveCurrentRewardMultiplier(
+    runtimeSpawn: RuntimeSpawnEntry | undefined,
+    wave: number
+  ): {
+    hpMultiplier: number;
+    mpMultiplier: number;
+    attackMultiplier: number;
+    defenseMultiplier: number;
+    rewardGoldMultiplier: number;
+    rewardGemMultiplier: number;
+  } {
+    if (!runtimeSpawn || !this.waveRuntimeConfig) {
+      return {
+        hpMultiplier: 1,
+        mpMultiplier: 1,
+        attackMultiplier: 1,
+        defenseMultiplier: 1,
+        rewardGoldMultiplier: 1,
+        rewardGemMultiplier: 1
+      };
+    }
+    const { waveGroupNo } = this.resolveWavePattern(wave);
+    const groupScale = this.waveGroupScalingByNo.get(waveGroupNo);
+    const groupHp = Math.max(0.01, groupScale?.hpMultiplier ?? 1);
+    const groupMp = Math.max(0.01, groupScale?.mpMultiplier ?? 1);
+    const groupAtk = Math.max(0.01, groupScale?.attackMultiplier ?? 1);
+    const groupDef = Math.max(0.01, groupScale?.defenseMultiplier ?? 1);
+    const groupGold = Math.max(0.01, groupScale?.rewardGoldMultiplier ?? 1);
+    const groupGem = Math.max(0.01, groupScale?.rewardGemMultiplier ?? 1);
+    return {
+      hpMultiplier: runtimeSpawn.hpMultiplier * groupHp,
+      mpMultiplier: runtimeSpawn.mpMultiplier * groupMp,
+      attackMultiplier: runtimeSpawn.attackMultiplier * groupAtk,
+      defenseMultiplier: runtimeSpawn.defenseMultiplier * groupDef,
+      rewardGoldMultiplier: runtimeSpawn.rewardGoldMultiplier * groupGold,
+      rewardGemMultiplier: runtimeSpawn.rewardGemMultiplier * groupGem
+    };
+  }
+
   private refreshMonsterSupportSprites(): void {
-    const frame = this.monsterBaseFrame >= 0
-      ? this.monsterBaseFrame
-      : frameIndexFromBlock(EMERGENCY_PROFILE.block, 0, 0, getSheetColumns(this));
+    const frame = this.monsterBaseFrame >= 0 ? this.monsterBaseFrame : this.frameIndexFromBlock(this.resolveDefaultBlock('slime'), 0, 0);
     const aliveSupportCount = Math.max(0, this.monstersPerWave - this.defeatedInWave - 1);
     this.monsterSupportSprites.forEach((sprite, idx) => {
       sprite.setTexture('sprite-pack', frame);
@@ -1264,4 +1507,7 @@ export class MainScene extends Phaser.Scene {
     });
   }
 
+  private hudStyle(): Phaser.Types.GameObjects.Text.TextStyle {
+    return { fontFamily: 'Verdana', fontSize: '17px', color: '#e6f0ff' };
+  }
 }

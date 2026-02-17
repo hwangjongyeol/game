@@ -24,11 +24,13 @@ export type ActiveCompanionSession = {
   companionName: string;
   classId: CharacterClassId;
   slotNo: number | null;
+  renderProfileJson?: string | null;
 };
 
 export type WaveRuntimeEntry = {
   slotNo: number;
   monsterId: string;
+  monsterRenderProfileJson?: string | null;
   monsterCount: number;
   hpMultiplier: number;
   mpMultiplier: number;
@@ -68,6 +70,7 @@ export type GameSession = {
   playerId: number;
   nickname: string;
   classId: CharacterClassId;
+  classRenderProfileJson?: string | null;
   persistentStats?: PersistentCharacterStats;
   initialInventory?: SessionInventoryItem[];
   activeCompanions?: ActiveCompanionSession[];

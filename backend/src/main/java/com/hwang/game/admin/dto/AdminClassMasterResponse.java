@@ -9,6 +9,7 @@ public record AdminClassMasterResponse(
         int baseDefense,
         int baseHp,
         int baseMp,
+        String renderProfileJson,
         boolean active
 ) {
     public static AdminClassMasterResponse from(CharacterClassMasterEntity entity) {
@@ -19,6 +20,7 @@ public record AdminClassMasterResponse(
                 entity.getBaseDefense(),
                 entity.getBaseHp(),
                 entity.getBaseMp(),
+                entity.getRenderProfileJson(),
                 entity.isActive()
         );
     }

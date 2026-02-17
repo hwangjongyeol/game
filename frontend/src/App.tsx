@@ -44,6 +44,7 @@ import {
   getEquipment,
   getEquipmentPresets,
   getSessionAccount,
+  logoutAccount,
   getItemCatalog,
   getPlayersByAccount,
   getRuntimeBalanceProfile,
@@ -162,6 +163,7 @@ export default function App() {
     { id: 'mage', label: 'Mage' },
     { id: 'ranger', label: 'Ranger' }
   ]);
+  const [classRenderProfileById, setClassRenderProfileById] = useState<Record<string, string | null>>({});
   const [entered, setEntered] = useState(false);
   const [viewTab, setViewTab] = useState<ViewTab>('game');
   const [sortType, setSortType] = useState<SortType>('rarity');
@@ -276,16 +278,26 @@ export default function App() {
 
   useEffect(() => {
     if (!account) return;
-    if (player) return;
+    if (player) {
+      setClassId(normalizeClassId(player.classId));
+      return;
+    }
     if (players.length <= 0) return;
+
+    // 리로드 시 마지막 선택 캐릭터만 자동 복원하고, 없으면 선택 화면 유지
     const raw = window.localStorage.getItem(lastPlayerStorageKey(account.accountId));
     const preferredId = raw ? Number(raw) : Number.NaN;
-    const next = players.find((row) => !Number.isNaN(preferredId) && row.id === preferredId) ?? players[0];
-    setPlayer(next);
+    if (Number.isNaN(preferredId)) return;
+
+    const restored = players.find((row) => row.id === preferredId);
+    if (!restored) {
+      window.localStorage.removeItem(lastPlayerStorageKey(account.accountId));
+      return;
+    }
+    setPlayer(restored);
     setEntered(true);
-    setClassId(normalizeClassId(next.classId));
-    window.localStorage.setItem(lastPlayerStorageKey(account.accountId), String(next.id));
-  }, [account, players, player]);
+    setClassId(normalizeClassId(restored.classId));
+  }, [account, player, players]);
 
   const handleAccountSignUp = async () => {
     setError(null);
@@ -310,6 +322,24 @@ export default function App() {
       setEntered(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : '계정 로그인 실패');
+    }
+  };
+
+  const handleLogout = async () => {
+    setError(null);
+    try {
+      await logoutAccount();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '로그아웃 실패');
+    } finally {
+      if (account) {
+        window.localStorage.removeItem(lastPlayerStorageKey(account.accountId));
+      }
+      setAccount(null);
+      setPlayers([]);
+      setPlayer(null);
+      setEntered(false);
+      setViewTab('game');
     }
   };
 
@@ -368,6 +398,9 @@ export default function App() {
     setWaveRuntimeConfig(waveRuntime);
     if (classes.length > 0) {
       setClassOptions(classes.map((row) => ({ id: normalizeClassId(row.classId), label: row.className || row.classId })));
+      setClassRenderProfileById(
+        Object.fromEntries(classes.map((row) => [normalizeClassId(row.classId), row.renderProfileJson ?? null]))
+      );
     }
   }, []);
 
@@ -378,6 +411,9 @@ export default function App() {
         if (classes.length <= 0) return;
         const options = classes.map((row) => ({ id: normalizeClassId(row.classId), label: row.className || row.classId }));
         setClassOptions(options);
+        setClassRenderProfileById(
+          Object.fromEntries(classes.map((row) => [normalizeClassId(row.classId), row.renderProfileJson ?? null]))
+        );
         if (!options.some((item) => item.id === classId)) {
           setClassId(options[0].id);
         }
@@ -650,6 +686,10 @@ export default function App() {
   }, [equipCandidates, equipmentViewSlot]);
 
   const currentPlayerClass = useMemo(() => normalizeClassId(player?.classId), [player?.classId]);
+  const activeClassId = useMemo(
+    () => normalizeClassId(player?.classId ?? classId),
+    [player?.classId, classId]
+  );
 
   const activeCompanions = useMemo(
     () => userCompanions.filter((row) => row.slotNo != null).sort((a, b) => (a.slotNo ?? 99) - (b.slotNo ?? 99)),
@@ -1321,7 +1361,7 @@ export default function App() {
                           primary={`${row.companionName} Lv.${row.level}`}
                           secondary={
                             <Typography variant="caption" sx={{ color: '#9fc2ff' }}>
-                              보유 복제 {row.copies} / 필요 {need}
+                              보유 {row.copies} / 필요 {need}
                             </Typography>
                           }
                         />
@@ -1425,7 +1465,8 @@ export default function App() {
             key={`${player.id}-${gameSeed}`}
             playerId={player.id}
             nickname={player.nickname}
-            classId={classId}
+            classId={activeClassId}
+            classRenderProfileJson={classRenderProfileById[activeClassId] ?? null}
             startWave={currentWave}
             hidden={viewTab !== 'game' && viewTab !== 'stats'}
             battleSpeed={battleSpeed}
@@ -1448,7 +1489,8 @@ export default function App() {
               companionId: row.companionId,
               companionName: row.companionName,
               classId: normalizeClassId(row.classId),
-              slotNo: row.slotNo
+              slotNo: row.slotNo,
+              renderProfileJson: row.renderProfileJson ?? null
             }))}
             persistentStats={{
               attack: characterStats.attack,
@@ -1468,6 +1510,9 @@ export default function App() {
                 {tab.label}
               </button>
             ))}
+            <button type="button" onClick={handleLogout}>
+              로그아웃
+            </button>
           </footer>
         </section>
       )}

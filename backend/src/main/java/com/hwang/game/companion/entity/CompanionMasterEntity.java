@@ -46,6 +46,9 @@ public class CompanionMasterEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active;
 
+    @Column(name = "render_profile_json", columnDefinition = "LONGTEXT")
+    private String renderProfileJson;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -125,6 +128,10 @@ public class CompanionMasterEntity {
         return active;
     }
 
+    public String getRenderProfileJson() {
+        return renderProfileJson;
+    }
+
     public void setCompanionName(String companionName) {
         this.companionName = companionName;
     }
@@ -163,5 +170,9 @@ public class CompanionMasterEntity {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public void setRenderProfileJson(String renderProfileJson) {
+        this.renderProfileJson = renderProfileJson;
     }
 }

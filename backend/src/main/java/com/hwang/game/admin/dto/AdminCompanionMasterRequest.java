@@ -10,6 +10,7 @@ public record AdminCompanionMasterRequest(
         Integer baseHp,
         Integer baseMp,
         String imageUrl,
+        String renderProfileJson,
         Integer recruitWeight,
         Boolean active
 ) {

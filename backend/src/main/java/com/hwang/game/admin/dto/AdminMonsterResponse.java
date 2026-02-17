@@ -14,6 +14,7 @@ public record AdminMonsterResponse(
         int rewardExp,
         int rewardScore,
         String spriteKey,
+        String renderProfileJson,
         boolean active
 ) {
     public static AdminMonsterResponse from(MonsterMasterEntity entity) {
@@ -29,6 +30,7 @@ public record AdminMonsterResponse(
                 entity.getRewardExp(),
                 entity.getRewardScore(),
                 entity.getSpriteKey(),
+                entity.getRenderProfileJson(),
                 entity.isActive()
         );
     }

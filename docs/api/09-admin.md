@@ -20,6 +20,10 @@
 - `PUT /api/v1/admin/classes/{classId}`
 - `DELETE /api/v1/admin/classes/{classId}` (비활성화)
 
+주요 관리 필드:
+- `renderProfileJson` (nullable JSON 문자열)
+  - 예: `{"spritePackKey":"warrior"}` 또는 `{"block":{"col":0,"row":0},"battleFrames":[[0,0],[1,0],[2,0],[3,0]]}`
+
 요청 예시:
 ```json
 {
@@ -49,6 +53,10 @@
 - `POST /api/v1/admin/monsters`
 - `PUT /api/v1/admin/monsters/{monsterId}`
 - `DELETE /api/v1/admin/monsters/{monsterId}` (비활성화)
+
+주요 관리 필드:
+- `renderProfileJson` (nullable JSON 문자열)
+  - 예: `{"spritePackKey":"slime"}` 또는 `{"block":{"col":8,"row":4}}`
 
 ## 6) 몬스터 드랍 테이블 관리
 - `GET /api/v1/admin/monsters/{monsterId}/drops`
@@ -125,6 +133,7 @@
   "baseHp": 110,
   "baseMp": 56,
   "imageUrl": "/companions/mage-s7.png",
+  "renderProfileJson": "{\"spritePackKey\":\"mage\"}",
   "recruitWeight": 40,
   "active": true
 }
@@ -145,10 +154,12 @@
 
 ## 공개 클래스 조회
 - `GET /api/v1/classes`
+- 응답 필드에 `renderProfileJson` 포함
 
 ## 공개 웨이브 런타임 조회
 - `GET /api/v1/waves/runtime/{dungeonId}`
 - 응답: 100개 패턴(`1-1~10-10`) + 웨이브 그룹 배수 목록
+- 각 웨이브 엔트리에 `monsterRenderProfileJson` 포함
 
 요청 예시:
 ```json

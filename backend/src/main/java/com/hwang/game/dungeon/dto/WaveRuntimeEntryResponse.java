@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 public record WaveRuntimeEntryResponse(
         int slotNo,
         String monsterId,
+        String monsterRenderProfileJson,
         int monsterCount,
         BigDecimal hpMultiplier,
         BigDecimal mpMultiplier,

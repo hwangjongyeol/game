@@ -145,6 +145,7 @@ export type CompanionMasterResponse = {
   baseHp: number;
   baseMp: number;
   imageUrl: string;
+  renderProfileJson?: string | null;
   recruitWeight: number;
   active: boolean;
 };
@@ -164,6 +165,7 @@ export type UserCompanionResponse = {
   hp: number;
   mp: number;
   imageUrl: string;
+  renderProfileJson?: string | null;
 };
 
 export type CompanionPartyBonusResponse = {
@@ -221,6 +223,7 @@ export type DungeonProgressResponse = {
 export type WaveRuntimeEntryResponse = {
   slotNo: number;
   monsterId: string;
+  monsterRenderProfileJson?: string | null;
   monsterCount: number;
   hpMultiplier: number;
   mpMultiplier: number;
@@ -265,6 +268,7 @@ export type ClassMasterResponse = {
   baseDefense: number;
   baseHp: number;
   baseMp: number;
+  renderProfileJson?: string | null;
   active: boolean;
 };
 
@@ -301,6 +305,16 @@ export async function getSessionAccount(): Promise<AccountResponse | null> {
     throw new Error(body.error?.message ?? 'Failed to load session account');
   }
   return body.data ?? null;
+}
+
+export async function logoutAccount(): Promise<void> {
+  const response = await fetch('/api/v1/accounts/logout', {
+    method: 'POST'
+  });
+  const body = (await response.json()) as ApiResponse<null>;
+  if (!body.success) {
+    throw new Error(body.error?.message ?? 'Failed to logout account');
+  }
 }
 
 export async function createPlayer(

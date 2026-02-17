@@ -12,6 +12,7 @@ public record AdminMonsterRequest(
         Integer rewardExp,
         Integer rewardScore,
         String spriteKey,
+        String renderProfileJson,
         Boolean active
 ) {
 }

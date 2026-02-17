@@ -1,7 +1,9 @@
 package com.hwang.game.dungeon.service;
 
 import com.hwang.game.admin.entity.WaveGroupScalingEntity;
+import com.hwang.game.admin.entity.MonsterMasterEntity;
 import com.hwang.game.admin.entity.WaveSettingEntity;
+import com.hwang.game.admin.repository.MonsterMasterRepository;
 import com.hwang.game.admin.repository.WaveGroupScalingRepository;
 import com.hwang.game.admin.repository.WaveSettingRepository;
 import com.hwang.game.dungeon.dto.WaveGroupScalingRuntimeResponse;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,13 +28,16 @@ public class WaveRuntimeService {
 
     private final WaveSettingRepository waveSettingRepository;
     private final WaveGroupScalingRepository waveGroupScalingRepository;
+    private final MonsterMasterRepository monsterMasterRepository;
 
     public WaveRuntimeService(
             WaveSettingRepository waveSettingRepository,
-            WaveGroupScalingRepository waveGroupScalingRepository
+            WaveGroupScalingRepository waveGroupScalingRepository,
+            MonsterMasterRepository monsterMasterRepository
     ) {
         this.waveSettingRepository = waveSettingRepository;
         this.waveGroupScalingRepository = waveGroupScalingRepository;
+        this.monsterMasterRepository = monsterMasterRepository;
     }
 
     @Transactional(readOnly = true)
@@ -41,6 +47,14 @@ public class WaveRuntimeService {
                 .stream()
                 .filter(WaveSettingEntity::isActive)
                 .toList();
+        Map<String, String> monsterRenderProfileById = monsterMasterRepository.findAllById(
+                waveRows.stream().map(WaveSettingEntity::getMonsterId).distinct().toList()
+        ).stream().collect(
+                HashMap::new,
+                (acc, monster) -> acc.put(monster.getMonsterId(), monster.getRenderProfileJson()),
+                HashMap::putAll
+        );
+
         Map<Integer, List<WaveRuntimeEntryResponse>> patternEntryMap = waveRows.stream()
                 .collect(Collectors.groupingBy(
                         WaveSettingEntity::getWaveNo,
@@ -48,6 +62,7 @@ public class WaveRuntimeService {
                                 row -> new WaveRuntimeEntryResponse(
                                         row.getSlotNo(),
                                         row.getMonsterId(),
+                                        monsterRenderProfileById.get(row.getMonsterId()),
                                         Math.max(1, row.getMonsterCount()),
                                         row.getHpMultiplier(),
                                         row.getMpMultiplier(),

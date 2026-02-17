@@ -727,6 +727,8 @@ paths:
     get:
       tags: [Balance]
       summary: Get active class masters
+      description: |
+        각 클래스 응답에 `renderProfileJson`(nullable JSON 문자열)이 포함됩니다.
       operationId: getClassMastersPublic
       responses:
         '200':
@@ -740,6 +742,8 @@ paths:
     get:
       tags: [Admin]
       summary: Get class masters
+      description: |
+        관리 응답에 `renderProfileJson`(nullable JSON 문자열)이 포함됩니다.
       operationId: getClassMastersAdmin
       responses:
         '200':
@@ -751,6 +755,8 @@ paths:
     post:
       tags: [Admin]
       summary: Create class master
+      description: |
+        요청 본문에서 `renderProfileJson`(nullable JSON 문자열)을 저장할 수 있습니다.
       operationId: createClassMaster
       responses:
         '200':
@@ -764,6 +770,8 @@ paths:
     put:
       tags: [Admin]
       summary: Update class master
+      description: |
+        요청 본문에서 `renderProfileJson`(nullable JSON 문자열)을 수정할 수 있습니다.
       operationId: updateClassMaster
       parameters:
         - name: classId

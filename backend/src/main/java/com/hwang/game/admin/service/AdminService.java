@@ -636,6 +636,7 @@ public class AdminService {
         if (request.baseDefense() != null) entity.setBaseDefense(Math.max(0, request.baseDefense()));
         if (request.baseHp() != null) entity.setBaseHp(Math.max(1, request.baseHp()));
         if (request.baseMp() != null) entity.setBaseMp(Math.max(1, request.baseMp()));
+        if (request.renderProfileJson() != null) entity.setRenderProfileJson(normalizeJsonText(request.renderProfileJson()));
         if (request.active() != null) entity.setActive(request.active());
     }
 
@@ -744,6 +745,7 @@ public class AdminService {
         if (request.rewardExp() != null) entity.setRewardExp(Math.max(0, request.rewardExp()));
         if (request.rewardScore() != null) entity.setRewardScore(Math.max(0, request.rewardScore()));
         if (request.spriteKey() != null) entity.setSpriteKey(request.spriteKey().trim());
+        if (request.renderProfileJson() != null) entity.setRenderProfileJson(normalizeJsonText(request.renderProfileJson()));
         if (request.active() != null) entity.setActive(request.active());
     }
 
@@ -821,8 +823,15 @@ public class AdminService {
         if (request.baseHp() != null) entity.setBaseHp(Math.max(0, request.baseHp()));
         if (request.baseMp() != null) entity.setBaseMp(Math.max(0, request.baseMp()));
         if (request.imageUrl() != null) entity.setImageUrl(request.imageUrl().trim());
+        if (request.renderProfileJson() != null) entity.setRenderProfileJson(normalizeJsonText(request.renderProfileJson()));
         if (request.recruitWeight() != null) entity.setRecruitWeight(Math.max(1, request.recruitWeight()));
         if (request.active() != null) entity.setActive(request.active());
+    }
+
+    private String normalizeJsonText(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private String normalizeNull(String value) {

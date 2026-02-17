@@ -7,6 +7,7 @@ public record AdminClassMasterRequest(
         Integer baseDefense,
         Integer baseHp,
         Integer baseMp,
+        String renderProfileJson,
         Boolean active
 ) {
 }

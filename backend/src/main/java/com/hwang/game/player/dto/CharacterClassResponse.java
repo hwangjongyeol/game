@@ -9,6 +9,7 @@ public record CharacterClassResponse(
         int baseDefense,
         int baseHp,
         int baseMp,
+        String renderProfileJson,
         boolean active
 ) {
     public static CharacterClassResponse from(CharacterClassMasterEntity entity) {
@@ -19,6 +20,7 @@ public record CharacterClassResponse(
                 entity.getBaseDefense(),
                 entity.getBaseHp(),
                 entity.getBaseMp(),
+                entity.getRenderProfileJson(),
                 entity.isActive()
         );
     }
