@@ -25,6 +25,9 @@ public class WaveSettingEntity {
     @Column(name = "wave_no", nullable = false)
     private int waveNo;
 
+    @Column(name = "slot_no", nullable = false)
+    private int slotNo;
+
     @Column(name = "monster_id", nullable = false, length = 80)
     private String monsterId;
 
@@ -61,9 +64,10 @@ public class WaveSettingEntity {
     protected WaveSettingEntity() {
     }
 
-    public WaveSettingEntity(String dungeonId, int waveNo, String monsterId) {
+    public WaveSettingEntity(String dungeonId, int waveNo, int slotNo, String monsterId) {
         this.dungeonId = dungeonId;
         this.waveNo = waveNo;
+        this.slotNo = slotNo;
         this.monsterId = monsterId;
         this.monsterCount = 1;
         this.hpMultiplier = BigDecimal.ONE;
@@ -101,6 +105,10 @@ public class WaveSettingEntity {
 
     public String getMonsterId() {
         return monsterId;
+    }
+
+    public int getSlotNo() {
+        return slotNo;
     }
 
     public int getMonsterCount() {
@@ -141,6 +149,10 @@ public class WaveSettingEntity {
 
     public void setWaveNo(int waveNo) {
         this.waveNo = waveNo;
+    }
+
+    public void setSlotNo(int slotNo) {
+        this.slotNo = slotNo;
     }
 
     public void setMonsterId(String monsterId) {

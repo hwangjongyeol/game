@@ -1,3 +1,4 @@
+import { getCombatBalance } from '../balance/combatBalance';
 import { AttackResult, CoreStats, FighterState } from './types';
 
 export function calcBasicAttack(
@@ -6,10 +7,11 @@ export function calcBasicAttack(
   targetState: FighterState,
   critChance = 0.1
 ): AttackResult {
+  const combatBalance = getCombatBalance();
   const critical = Math.random() < critChance;
-  const raw = critical ? Math.floor(attacker.attack * 1.5) : attacker.attack;
-  const blocked = Math.floor(target.defense * 0.7);
-  const damage = Math.max(1, raw - blocked);
+  const raw = critical ? Math.floor(attacker.attack * combatBalance.damage.critMultiplier) : attacker.attack;
+  const blocked = Math.floor(target.defense * combatBalance.damage.defenseBlockMultiplier);
+  const damage = Math.max(combatBalance.damage.minDamage, raw - blocked);
   const targetHpAfter = Math.max(0, targetState.hp - damage);
 
   return {

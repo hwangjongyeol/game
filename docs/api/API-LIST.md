@@ -47,10 +47,18 @@
 - `GET /api/v1/admin/players/{userId}/stats`
 - `PUT /api/v1/admin/players/{userId}/stats`
 - `PUT /api/v1/admin/players/{userId}/equipment`
+- `GET /api/v1/admin/classes`
+- `POST /api/v1/admin/classes`
+- `PUT /api/v1/admin/classes/{classId}`
+- `DELETE /api/v1/admin/classes/{classId}`
 - `GET /api/v1/admin/items`
 - `POST /api/v1/admin/items`
 - `PUT /api/v1/admin/items/{itemId}`
 - `DELETE /api/v1/admin/items/{itemId}`
+- `GET /api/v1/admin/items/{itemId}/upgrade-tiers`
+- `POST /api/v1/admin/item-upgrade-tiers`
+- `PUT /api/v1/admin/item-upgrade-tiers/{tierId}`
+- `DELETE /api/v1/admin/item-upgrade-tiers/{tierId}`
 - `GET /api/v1/admin/monsters`
 - `POST /api/v1/admin/monsters`
 - `PUT /api/v1/admin/monsters/{monsterId}`
@@ -63,9 +71,26 @@
 - `POST /api/v1/admin/waves`
 - `PUT /api/v1/admin/waves/{waveSettingId}`
 - `DELETE /api/v1/admin/waves/{waveSettingId}`
+- `GET /api/v1/admin/wave-groups/{dungeonId}`
+- `POST /api/v1/admin/wave-groups`
+- `PUT /api/v1/admin/wave-groups/{waveGroupScalingId}`
+- `DELETE /api/v1/admin/wave-groups/{waveGroupScalingId}`
 - `GET /api/v1/admin/companions/masters`
 - `POST /api/v1/admin/companions/masters`
 - `PUT /api/v1/admin/companions/masters/{companionId}`
 - `DELETE /api/v1/admin/companions/masters/{companionId}`
 - `GET /api/v1/admin/companions/users/{userId}`
 - `PUT /api/v1/admin/companions/users/{userCompanionId}`
+- `GET /api/v1/admin/balance-profiles`
+- `POST /api/v1/admin/balance-profiles`
+- `PUT /api/v1/admin/balance-profiles/{profileId}`
+- `DELETE /api/v1/admin/balance-profiles/{profileId}`
+
+### Balance
+- `GET /api/v1/balance/runtime`
+
+### Class
+- `GET /api/v1/classes`
+
+### Wave Runtime
+- `GET /api/v1/waves/runtime/{dungeonId}`

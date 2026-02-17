@@ -1,9 +1,11 @@
 import {
   Admin,
+  Button,
   BooleanField,
   BooleanInput,
   Create,
   Datagrid,
+  DeleteButton,
   Edit,
   FunctionField,
   Layout,
@@ -15,23 +17,23 @@ import {
   SelectInput,
   SimpleForm,
   TextField,
-  TextInput
+  TextInput,
+  useGetList,
+  useNotify
 } from 'react-admin';
 import { dataProvider } from './dataProvider';
-
-const classChoices = [
-  { id: 'knight', name: 'knight' },
-  { id: 'mage', name: 'mage' },
-  { id: 'ranger', name: 'ranger' }
-];
 
 const AdminMenu = () => (
   <Menu>
     <Menu.ResourceItem name="players" />
+    <Menu.ResourceItem name="classMasters" />
     <Menu.ResourceItem name="items" />
+    <Menu.ResourceItem name="itemUpgradeTiers" />
     <Menu.ResourceItem name="monsters" />
     <Menu.ResourceItem name="monsterDrops" />
     <Menu.ResourceItem name="waves" />
+    <Menu.ResourceItem name="waveGroups" />
+    <Menu.ResourceItem name="balanceProfiles" />
     <Menu.ResourceItem name="companionMasters" />
     <Menu.ResourceItem name="userCompanions" />
   </Menu>
@@ -94,6 +96,52 @@ const validateMultiplier = (field: string) => (value: number) => {
   return undefined;
 };
 
+const validatePatternWaveNo = (value: number) => {
+  if (value == null || Number(value) < 1) return 'waveNo must be >= 1';
+  if (Number(value) > 100) return 'waveNo must be <= 100 (1-1 ~ 10-10 패턴)';
+  return undefined;
+};
+
+const validateJsonText = (value: string) => {
+  if (!value || !value.trim()) return 'json is required';
+  try {
+    JSON.parse(value);
+    return undefined;
+  } catch {
+    return 'invalid json';
+  }
+};
+
+const CopyJsonButton = ({ json }: { json: string }) => {
+  const notify = useNotify();
+  return (
+    <Button
+      label="copy"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(json);
+          notify('json copied');
+        } catch {
+          notify('copy failed', { type: 'warning' });
+        }
+      }}
+    />
+  );
+};
+
+const ClassSelectInput = (props: any) => {
+  const { data = [] } = useGetList('classMasters', {
+    pagination: { page: 1, perPage: 200 },
+    sort: { field: 'classId', order: 'ASC' },
+    filter: {}
+  });
+  const choices = (data as any[]).map((row) => ({
+    id: row.classId,
+    name: row.className ? `${row.classId} (${row.className})` : row.classId
+  }));
+  return <SelectInput {...props} choices={choices} />;
+};
+
 const PlayersList = () => (
   <List>
     <Datagrid rowClick="edit">
@@ -112,11 +160,52 @@ const PlayersEdit = () => (
   <Edit>
     <SimpleForm>
       <TextInput source="nickname" />
-      <SelectInput source="classId" choices={classChoices} />
+      <ClassSelectInput source="classId" />
       <NumberInput source="level" />
       <NumberInput source="exp" />
       <NumberInput source="powerScore" />
       <BooleanInput source="deleted" />
+    </SimpleForm>
+  </Edit>
+);
+
+const ClassMastersList = () => (
+  <List>
+    <Datagrid rowClick="edit">
+      <TextField source="classId" />
+      <TextField source="className" />
+      <NumberField source="baseAttack" />
+      <NumberField source="baseDefense" />
+      <NumberField source="baseHp" />
+      <NumberField source="baseMp" />
+      <BooleanField source="active" />
+    </Datagrid>
+  </List>
+);
+
+const ClassMastersCreate = () => (
+  <Create>
+    <SimpleForm>
+      <TextInput source="classId" />
+      <TextInput source="className" />
+      <NumberInput source="baseAttack" validate={requiredPositive('baseAttack')} />
+      <NumberInput source="baseDefense" validate={requiredNonNegative('baseDefense')} />
+      <NumberInput source="baseHp" validate={requiredPositive('baseHp')} />
+      <NumberInput source="baseMp" validate={requiredPositive('baseMp')} />
+      <BooleanInput source="active" defaultValue />
+    </SimpleForm>
+  </Create>
+);
+
+const ClassMastersEdit = () => (
+  <Edit>
+    <SimpleForm>
+      <TextInput source="className" />
+      <NumberInput source="baseAttack" validate={requiredPositive('baseAttack')} />
+      <NumberInput source="baseDefense" validate={requiredNonNegative('baseDefense')} />
+      <NumberInput source="baseHp" validate={requiredPositive('baseHp')} />
+      <NumberInput source="baseMp" validate={requiredPositive('baseMp')} />
+      <BooleanInput source="active" />
     </SimpleForm>
   </Edit>
 );
@@ -162,7 +251,7 @@ const ItemsCreate = () => (
       <TextInput source="itemName" />
       <SelectInput source="itemType" choices={itemTypeChoices} />
       <SelectInput source="equipSlot" choices={equipSlotChoices} emptyText="(none)" />
-      <SelectInput source="requiredClassId" choices={classChoices} emptyText="(all class)" />
+      <ClassSelectInput source="requiredClassId" emptyText="(all class)" />
       <TextInput source="quality" />
       <NumberInput source="attackBonus" validate={requiredNonNegative('attackBonus')} />
       <NumberInput source="defenseBonus" validate={requiredNonNegative('defenseBonus')} />
@@ -186,7 +275,7 @@ const ItemsEdit = () => (
       <TextInput source="itemName" />
       <SelectInput source="itemType" choices={itemTypeChoices} />
       <SelectInput source="equipSlot" choices={equipSlotChoices} emptyText="(none)" />
-      <SelectInput source="requiredClassId" choices={classChoices} emptyText="(all class)" />
+      <ClassSelectInput source="requiredClassId" emptyText="(all class)" />
       <TextInput source="quality" />
       <NumberInput source="attackBonus" validate={requiredNonNegative('attackBonus')} />
       <NumberInput source="defenseBonus" validate={requiredNonNegative('defenseBonus')} />
@@ -307,6 +396,11 @@ const WavesList = () => (
       <NumberField source="id" />
       <TextField source="dungeonId" />
       <NumberField source="waveNo" />
+      <FunctionField
+        label="waveLabel"
+        render={(record: any) => `${Math.floor((Number(record.waveNo) - 1) / 10) + 1}-${((Number(record.waveNo) - 1) % 10) + 1}`}
+      />
+      <NumberField source="slotNo" />
       <TextField source="monsterId" />
       <NumberField source="monsterCount" />
       <NumberField source="hpMultiplier" />
@@ -320,7 +414,8 @@ const WavesCreate = () => (
   <Create>
     <SimpleForm>
       <TextInput source="dungeonId" defaultValue="dungeon1" />
-      <NumberInput source="waveNo" validate={requiredPositive('waveNo')} />
+      <NumberInput source="waveNo" validate={validatePatternWaveNo} />
+      <NumberInput source="slotNo" defaultValue={1} validate={requiredPositive('slotNo')} />
       <TextInput source="monsterId" />
       <NumberInput source="monsterCount" defaultValue={1} validate={requiredPositive('monsterCount')} />
       <NumberInput source="hpMultiplier" defaultValue={1} step={0.01} validate={validateMultiplier('hpMultiplier')} />
@@ -338,7 +433,8 @@ const WavesEdit = () => (
   <Edit>
     <SimpleForm>
       <TextInput source="dungeonId" />
-      <NumberInput source="waveNo" validate={requiredPositive('waveNo')} />
+      <NumberInput source="waveNo" validate={validatePatternWaveNo} />
+      <NumberInput source="slotNo" validate={requiredPositive('slotNo')} />
       <TextInput source="monsterId" />
       <NumberInput source="monsterCount" validate={requiredPositive('monsterCount')} />
       <NumberInput source="hpMultiplier" step={0.01} validate={validateMultiplier('hpMultiplier')} />
@@ -347,6 +443,150 @@ const WavesEdit = () => (
       <NumberInput source="defenseMultiplier" step={0.01} validate={validateMultiplier('defenseMultiplier')} />
       <NumberInput source="rewardGoldMultiplier" step={0.01} validate={validateMultiplier('rewardGoldMultiplier')} />
       <NumberInput source="rewardGemMultiplier" step={0.01} validate={validateMultiplier('rewardGemMultiplier')} />
+      <BooleanInput source="active" />
+    </SimpleForm>
+  </Edit>
+);
+
+const WaveGroupsList = () => (
+  <List
+    filters={[<TextInput source="dungeonId" />]}
+    filterDefaultValues={{ dungeonId: 'dungeon1' }}
+  >
+    <Datagrid rowClick="edit">
+      <NumberField source="id" />
+      <TextField source="dungeonId" />
+      <NumberField source="waveGroupNo" />
+      <NumberField source="hpMultiplier" />
+      <NumberField source="attackMultiplier" />
+      <NumberField source="defenseMultiplier" />
+      <TextField source="backgroundImagePath" />
+      <BooleanField source="active" />
+    </Datagrid>
+  </List>
+);
+
+const WaveGroupsCreate = () => (
+  <Create>
+    <SimpleForm>
+      <TextInput source="dungeonId" defaultValue="dungeon1" />
+      <NumberInput source="waveGroupNo" validate={requiredPositive('waveGroupNo')} />
+      <NumberInput source="hpMultiplier" defaultValue={1} step={0.01} validate={validateMultiplier('hpMultiplier')} />
+      <NumberInput source="mpMultiplier" defaultValue={1} step={0.01} validate={validateMultiplier('mpMultiplier')} />
+      <NumberInput source="attackMultiplier" defaultValue={1} step={0.01} validate={validateMultiplier('attackMultiplier')} />
+      <NumberInput source="defenseMultiplier" defaultValue={1} step={0.01} validate={validateMultiplier('defenseMultiplier')} />
+      <NumberInput source="rewardGoldMultiplier" defaultValue={1} step={0.01} validate={validateMultiplier('rewardGoldMultiplier')} />
+      <NumberInput source="rewardGemMultiplier" defaultValue={1} step={0.01} validate={validateMultiplier('rewardGemMultiplier')} />
+      <TextInput source="backgroundImagePath" defaultValue="/dungeons/dungeon-1.png" />
+      <BooleanInput source="active" defaultValue />
+    </SimpleForm>
+  </Create>
+);
+
+const WaveGroupsEdit = () => (
+  <Edit>
+    <SimpleForm>
+      <TextInput source="dungeonId" />
+      <NumberInput source="waveGroupNo" validate={requiredPositive('waveGroupNo')} />
+      <NumberInput source="hpMultiplier" step={0.01} validate={validateMultiplier('hpMultiplier')} />
+      <NumberInput source="mpMultiplier" step={0.01} validate={validateMultiplier('mpMultiplier')} />
+      <NumberInput source="attackMultiplier" step={0.01} validate={validateMultiplier('attackMultiplier')} />
+      <NumberInput source="defenseMultiplier" step={0.01} validate={validateMultiplier('defenseMultiplier')} />
+      <NumberInput source="rewardGoldMultiplier" step={0.01} validate={validateMultiplier('rewardGoldMultiplier')} />
+      <NumberInput source="rewardGemMultiplier" step={0.01} validate={validateMultiplier('rewardGemMultiplier')} />
+      <TextInput source="backgroundImagePath" />
+      <BooleanInput source="active" />
+    </SimpleForm>
+  </Edit>
+);
+
+const ItemUpgradeTiersList = () => (
+  <List
+    filters={[<TextInput source="itemId" />]}
+    filterDefaultValues={{ itemId: 'flame-sword' }}
+  >
+    <Datagrid rowClick="edit">
+      <NumberField source="id" />
+      <TextField source="itemId" />
+      <NumberField source="upgradeLevel" />
+      <NumberField source="upgradeGoldCost" />
+      <NumberField source="attackBonus" />
+      <NumberField source="defenseBonus" />
+      <NumberField source="hpBonus" />
+      <NumberField source="mpBonus" />
+    </Datagrid>
+  </List>
+);
+
+const ItemUpgradeTiersCreate = () => (
+  <Create>
+    <SimpleForm>
+      <TextInput source="itemId" defaultValue="flame-sword" />
+      <NumberInput source="upgradeLevel" validate={requiredPositive('upgradeLevel')} />
+      <NumberInput source="upgradeGoldCost" validate={requiredNonNegative('upgradeGoldCost')} />
+      <NumberInput source="attackBonus" validate={requiredNonNegative('attackBonus')} />
+      <NumberInput source="defenseBonus" validate={requiredNonNegative('defenseBonus')} />
+      <NumberInput source="hpBonus" validate={requiredNonNegative('hpBonus')} />
+      <NumberInput source="mpBonus" validate={requiredNonNegative('mpBonus')} />
+    </SimpleForm>
+  </Create>
+);
+
+const ItemUpgradeTiersEdit = () => (
+  <Edit>
+    <SimpleForm>
+      <TextInput source="itemId" />
+      <NumberInput source="upgradeLevel" validate={requiredPositive('upgradeLevel')} />
+      <NumberInput source="upgradeGoldCost" validate={requiredNonNegative('upgradeGoldCost')} />
+      <NumberInput source="attackBonus" validate={requiredNonNegative('attackBonus')} />
+      <NumberInput source="defenseBonus" validate={requiredNonNegative('defenseBonus')} />
+      <NumberInput source="hpBonus" validate={requiredNonNegative('hpBonus')} />
+      <NumberInput source="mpBonus" validate={requiredNonNegative('mpBonus')} />
+    </SimpleForm>
+  </Edit>
+);
+
+const BalanceProfilesList = () => (
+  <List>
+    <Datagrid rowClick="edit" bulkActionButtons={false}>
+      <TextField source="profileId" />
+      <TextField source="profileName" />
+      <TextField source="description" />
+      <FunctionField
+        label="jsonBytes"
+        render={(record: any) => {
+          const size = new Blob([String(record?.json ?? '')]).size;
+          return `${size.toLocaleString()} bytes`;
+        }}
+      />
+      <TextField source="updatedAt" />
+      <FunctionField
+        label="copy"
+        render={(record: any) => <CopyJsonButton json={String(record?.profileJson ?? '{}')} />}
+      />
+      <DeleteButton />
+    </Datagrid>
+  </List>
+);
+
+const BalanceProfilesCreate = () => (
+  <Create>
+    <SimpleForm>
+      <TextInput source="profileId" helperText="unique key (e.g. season-2026-02)" />
+      <TextInput source="profileName" />
+      <TextInput source="description" />
+      <TextInput source="profileJson" multiline minRows={20} fullWidth validate={validateJsonText} />
+      <BooleanInput source="active" defaultValue />
+    </SimpleForm>
+  </Create>
+);
+
+const BalanceProfilesEdit = () => (
+  <Edit>
+    <SimpleForm>
+      <TextInput source="profileName" />
+      <TextInput source="description" />
+      <TextInput source="profileJson" multiline minRows={20} fullWidth validate={validateJsonText} />
       <BooleanInput source="active" />
     </SimpleForm>
   </Edit>
@@ -375,7 +615,7 @@ const CompanionMastersCreate = () => (
       <TextInput source="companionId" />
       <TextInput source="companionName" />
       <SelectInput source="grade" choices={companionGradeChoices} />
-      <SelectInput source="classId" choices={classChoices} />
+      <ClassSelectInput source="classId" />
       <NumberInput source="baseAttack" validate={requiredNonNegative('baseAttack')} />
       <NumberInput source="baseDefense" validate={requiredNonNegative('baseDefense')} />
       <NumberInput source="baseHp" validate={requiredNonNegative('baseHp')} />
@@ -392,7 +632,7 @@ const CompanionMastersEdit = () => (
     <SimpleForm>
       <TextInput source="companionName" />
       <SelectInput source="grade" choices={companionGradeChoices} />
-      <SelectInput source="classId" choices={classChoices} />
+      <ClassSelectInput source="classId" />
       <NumberInput source="baseAttack" validate={requiredNonNegative('baseAttack')} />
       <NumberInput source="baseDefense" validate={requiredNonNegative('baseDefense')} />
       <NumberInput source="baseHp" validate={requiredNonNegative('baseHp')} />
@@ -441,7 +681,21 @@ export default function App() {
   return (
     <Admin dataProvider={dataProvider} layout={AdminLayout}>
       <Resource name="players" options={{ label: '캐릭터' }} list={PlayersList} edit={PlayersEdit} />
+      <Resource
+        name="classMasters"
+        options={{ label: '클래스' }}
+        list={ClassMastersList}
+        create={ClassMastersCreate}
+        edit={ClassMastersEdit}
+      />
       <Resource name="items" options={{ label: '아이템' }} list={ItemsList} create={ItemsCreate} edit={ItemsEdit} />
+      <Resource
+        name="itemUpgradeTiers"
+        options={{ label: '장비강화티어' }}
+        list={ItemUpgradeTiersList}
+        create={ItemUpgradeTiersCreate}
+        edit={ItemUpgradeTiersEdit}
+      />
       <Resource name="monsters" options={{ label: '몬스터' }} list={MonstersList} create={MonstersCreate} edit={MonstersEdit} />
       <Resource
         name="monsterDrops"
@@ -451,6 +705,20 @@ export default function App() {
         edit={MonsterDropsEdit}
       />
       <Resource name="waves" options={{ label: '웨이브' }} list={WavesList} create={WavesCreate} edit={WavesEdit} />
+      <Resource
+        name="waveGroups"
+        options={{ label: '웨이브 배수' }}
+        list={WaveGroupsList}
+        create={WaveGroupsCreate}
+        edit={WaveGroupsEdit}
+      />
+      <Resource
+        name="balanceProfiles"
+        options={{ label: '밸런스(1/2/3)' }}
+        list={BalanceProfilesList}
+        create={BalanceProfilesCreate}
+        edit={BalanceProfilesEdit}
+      />
       <Resource
         name="companionMasters"
         options={{ label: '동료 마스터' }}

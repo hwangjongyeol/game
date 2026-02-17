@@ -1,12 +1,23 @@
 import Phaser from 'phaser';
 import { addDungeonScore, earnDungeonCurrency, syncDungeonLoot } from '../../api/client';
+import { calcRequiredExp, getCombatBalance } from '../balance/combatBalance';
+import { resolveDungeonIndexFromWave, resolveMonstersPerWaveFromBalance, resolveScaledMonsterStatsFromBalance } from '../balance/dungeonBalance';
+import { ITEM_PASSIVE_BONUS, CONSUMABLE_EFFECT, calcSetBonus, getLegacyEquipBonus } from '../balance/equipmentBalance';
 import { calcBasicAttack, canUseSkill } from '../combat/formulas';
 import { rollCoreDrops, rollEquipmentDrop } from '../combat/reward';
-import { classDefinitions, ClassDefinition, SkillNode } from '../entities/classes';
+import { getClassDefinitions, ClassDefinition, SkillNode } from '../entities/classes';
 import { Fighter } from '../entities/Fighter';
-import { dungeon1Monsters, DropItem, MonsterDefinition } from '../entities/monsters';
+import { getDungeon1Monsters, DropItem, MonsterDefinition } from '../entities/monsters';
 import { EventBus } from '../EventBus';
-import { ActiveCompanionSession, GameSession, PersistentCharacterStats } from '../types';
+import {
+  ActiveCompanionSession,
+  GameSession,
+  PersistentCharacterStats,
+  WaveGroupScalingRuntime,
+  WavePatternRuntime,
+  WaveRuntimeConfig,
+  WaveRuntimeEntry
+} from '../types';
 
 type InventoryEntry = {
   itemId: string;
@@ -15,6 +26,15 @@ type InventoryEntry = {
 };
 
 type SpritePackKey = 'warrior' | 'mage' | 'archer' | 'slime' | 'orc' | 'dragon';
+type RuntimeSpawnEntry = {
+  monsterId: string;
+  hpMultiplier: number;
+  mpMultiplier: number;
+  attackMultiplier: number;
+  defenseMultiplier: number;
+  rewardGoldMultiplier: number;
+  rewardGemMultiplier: number;
+};
 
 const SPRITE_BLOCKS: Record<SpritePackKey, { col: number; row: number }> = {
   warrior: { col: 0, row: 0 },
@@ -82,6 +102,12 @@ export class MainScene extends Phaser.Scene {
   private equippedBonus = { maxHp: 0, maxMp: 0, attack: 0, defense: 0 };
   private currentDungeonIndex = 1;
   private waveLocked = false;
+  private waveRuntimeConfig?: WaveRuntimeConfig;
+  private wavePatternByNo = new Map<number, WavePatternRuntime>();
+  private waveGroupScalingByNo = new Map<number, WaveGroupScalingRuntime>();
+  private waveBackgroundKeyByPath = new Map<string, string>();
+  private runtimeSpawnQueue: RuntimeSpawnEntry[] = [];
+  private currentRuntimeSpawn?: RuntimeSpawnEntry;
 
   private resolvingVictory = false;
   private battleSpeed = 1;
@@ -99,6 +125,7 @@ export class MainScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
+    const classDefinitions = getClassDefinitions();
     this.classDef = classDefinitions[this.session.classId] ?? classDefinitions.knight;
     this.hero = new Fighter(this.session.nickname, this.resolveHeroBaseStats());
     this.appliedPersistentStats = this.session.persistentStats;
@@ -107,6 +134,19 @@ export class MainScene extends Phaser.Scene {
     this.applyEquipmentBonuses();
     this.currentWave = Math.max(1, this.session.startWave ?? 1);
     this.waveLocked = Boolean(this.session.waveLocked);
+    this.waveRuntimeConfig = this.session.waveRuntimeConfig;
+    this.wavePatternByNo.clear();
+    this.waveGroupScalingByNo.clear();
+    this.runtimeSpawnQueue = [];
+    this.currentRuntimeSpawn = undefined;
+    if (this.waveRuntimeConfig) {
+      for (const pattern of this.waveRuntimeConfig.patterns ?? []) {
+        this.wavePatternByNo.set(pattern.patternWaveNo, pattern);
+      }
+      for (const groupScaling of this.waveRuntimeConfig.waveGroupScalings ?? []) {
+        this.waveGroupScalingByNo.set(groupScaling.waveGroupNo, groupScaling);
+      }
+    }
 
     this.drawDungeonBackground(width, height);
     this.createSpritePackAnimations();
@@ -147,7 +187,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private drawDungeonBackground(width: number, height: number): void {
-    this.backgroundImage = this.add.image(width / 2, height / 2, 'dungeon-bg-1').setDisplaySize(width, height);
+    this.backgroundImage = this.add.image(width / 2, height / 2, '__WHITE').setTint(0x000000).setDisplaySize(width, height);
   }
 
   private drawUnits(width: number, height: number): void {
@@ -234,11 +274,6 @@ export class MainScene extends Phaser.Scene {
     if (!rexUI?.add?.label || !rexUI?.add?.roundRectangleProgress) return;
     const skillHudTheme = this.resolveSkillHudTheme();
 
-    this.add
-      .rectangle(width - 196, height - 106, 296, 132, 0x07131f, 0.76)
-      .setStrokeStyle(1, 0x4c83ba, 0.85)
-      .setDepth(29);
-
     this.rexHeroHpText = this.add.text(width - 330, height - 150, 'Hero HP', {
       fontFamily: 'Verdana',
       fontSize: '11px',
@@ -293,9 +328,6 @@ export class MainScene extends Phaser.Scene {
       .label({
         x: width - 176,
         y: height - 36,
-        background: this.add
-          .rectangle(0, 0, 240, 30, 0x0f2a45, 0.86)
-          .setStrokeStyle(1, 0x69b8ff, 0.9),
         text: this.add.text(0, 0, 'RexUI Combat HUD', {
           fontFamily: 'Verdana',
           fontSize: '12px',
@@ -319,9 +351,10 @@ export class MainScene extends Phaser.Scene {
 
   private heroBasicAttack(): void {
     if (!this.ensureBattleActive()) return;
+    const combatBalance = getCombatBalance();
     this.playStrikeTween(this.heroBody, this.heroBaseX, 26);
     const prevHp = this.monster.state.hp;
-    const result = calcBasicAttack(this.hero.stats, this.monster.stats, this.monster.state, 0.14);
+    const result = calcBasicAttack(this.hero.stats, this.monster.stats, this.monster.state, combatBalance.scene.heroBasicCritChance);
     this.monster.receiveDamage(result.targetHpAfter);
     const dealt = Math.max(0, prevHp - this.monster.state.hp);
     this.showFloatingText(
@@ -335,6 +368,7 @@ export class MainScene extends Phaser.Scene {
 
   private heroSkillAttack(silentFail = false): void {
     if (!this.ensureBattleActive()) return;
+    const combatBalance = getCombatBalance();
 
     const skill = this.classDef.activeSkill;
     if (!canUseSkill(this.hero.state, skill.mpCost) || !this.hero.spendMp(skill.mpCost)) {
@@ -348,10 +382,18 @@ export class MainScene extends Phaser.Scene {
     let targetStats = this.monster.stats;
 
     if (skill.effect === 'BREAK_ARMOR') {
-      targetStats = { ...targetStats, defense: Math.max(0, targetStats.defense - 6) };
+      targetStats = {
+        ...targetStats,
+        defense: Math.max(0, targetStats.defense - combatBalance.scene.breakArmorDefensePenetration)
+      };
     }
 
-    const first = calcBasicAttack(primaryStats, targetStats, this.monster.state, 0.16 + skill.critBonus);
+    const first = calcBasicAttack(
+      primaryStats,
+      targetStats,
+      this.monster.state,
+      combatBalance.scene.heroSkillBaseCritChance + skill.critBonus
+    );
     const firstDamage = Math.max(0, this.monster.state.hp - first.targetHpAfter);
     this.monster.receiveDamage(first.targetHpAfter);
     const primaryTag = skill.effect === 'BREAK_ARMOR' ? 'BREAK' : skill.effect === 'ARCANE_ECHO' ? 'ARC' : 'SHOT';
@@ -364,8 +406,16 @@ export class MainScene extends Phaser.Scene {
 
     let totalDamage = firstDamage;
     if (skill.effect === 'ARCANE_ECHO' && this.monster.isAlive()) {
-      const echoStats = { ...this.hero.stats, attack: this.hero.stats.attack + Math.floor(skill.attackBonus * 0.55) };
-      const echo = calcBasicAttack(echoStats, targetStats, this.monster.state, Math.max(0.05, skill.critBonus * 0.45));
+      const echoStats = {
+        ...this.hero.stats,
+        attack: this.hero.stats.attack + Math.floor(skill.attackBonus * combatBalance.scene.arcaneEchoAttackRatio)
+      };
+      const echo = calcBasicAttack(
+        echoStats,
+        targetStats,
+        this.monster.state,
+        Math.max(combatBalance.scene.arcaneEchoMinCritChance, skill.critBonus * combatBalance.scene.arcaneEchoCritRatio)
+      );
       const echoDamage = Math.max(0, this.monster.state.hp - echo.targetHpAfter);
       this.monster.receiveDamage(echo.targetHpAfter);
       totalDamage += echoDamage;
@@ -373,7 +423,10 @@ export class MainScene extends Phaser.Scene {
     }
 
     if (skill.effect === 'VAMPIRIC_SHOT') {
-      const healAmount = Math.max(6, Math.floor(totalDamage * 0.3));
+      const healAmount = Math.max(
+        combatBalance.scene.vampiricMinHeal,
+        Math.floor(totalDamage * combatBalance.scene.vampiricLifestealRatio)
+      );
       this.hero.receiveDamage(this.hero.state.hp + healAmount);
       this.showFloatingText(this.heroBody.x, this.heroBody.y - 130, `+${healAmount} LIFESTEAL`, '#93ffb4');
     }
@@ -383,9 +436,10 @@ export class MainScene extends Phaser.Scene {
 
   private monsterTurn(): void {
     if (!this.ensureBattleActive()) return;
+    const combatBalance = getCombatBalance();
     this.playStrikeTween(this.monsterBody, this.monsterBaseX, -22);
     const prevHp = this.hero.state.hp;
-    const result = calcBasicAttack(this.monster.stats, this.hero.stats, this.hero.state, 0.08);
+    const result = calcBasicAttack(this.monster.stats, this.hero.stats, this.hero.state, combatBalance.scene.monsterBasicCritChance);
     this.hero.receiveDamage(result.targetHpAfter);
     const dealt = Math.max(0, prevHp - this.hero.state.hp);
     this.showFloatingText(
@@ -394,7 +448,7 @@ export class MainScene extends Phaser.Scene {
       `-${dealt}${result.critical ? ' CRIT' : ''} HIT`,
       result.critical ? '#ff8e54' : '#ffb482'
     );
-    this.monster.recoverMp(4);
+    this.monster.recoverMp(combatBalance.scene.monsterTurnMpRecovery);
     this.checkBattleEnd();
   }
 
@@ -486,10 +540,10 @@ export class MainScene extends Phaser.Scene {
       });
       this.itemUpgradeLevels.set(item.itemId, item.upgradeLevel ?? 0);
       this.itemStatBonuses.set(item.itemId, {
-        attack: item.attackBonus ?? this.getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).attack,
-        defense: item.defenseBonus ?? this.getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).defense,
-        maxHp: item.hpBonus ?? this.getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).maxHp,
-        maxMp: item.mpBonus ?? this.getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).maxMp
+        attack: item.attackBonus ?? getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).attack,
+        defense: item.defenseBonus ?? getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).defense,
+        maxHp: item.hpBonus ?? getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).maxHp,
+        maxMp: item.mpBonus ?? getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).maxMp
       });
     }
     this.reapplyInventoryPassiveBonuses();
@@ -517,10 +571,10 @@ export class MainScene extends Phaser.Scene {
     for (const item of items) {
       this.itemUpgradeLevels.set(item.itemId, item.upgradeLevel ?? 0);
       this.itemStatBonuses.set(item.itemId, {
-        attack: item.attackBonus ?? this.getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).attack,
-        defense: item.defenseBonus ?? this.getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).defense,
-        maxHp: item.hpBonus ?? this.getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).maxHp,
-        maxMp: item.mpBonus ?? this.getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).maxMp
+        attack: item.attackBonus ?? getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).attack,
+        defense: item.defenseBonus ?? getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).defense,
+        maxHp: item.hpBonus ?? getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).maxHp,
+        maxMp: item.mpBonus ?? getLegacyEquipBonus(item.itemId, item.upgradeLevel ?? 0).maxMp
       });
       if (item.quantity > 0) {
         this.inventory.set(item.itemId, { itemId: item.itemId, itemName: item.itemName, quantity: item.quantity });
@@ -575,29 +629,29 @@ export class MainScene extends Phaser.Scene {
 
   private applyItemEffects(drop: DropItem): void {
     if (drop.itemId === 'slime-gel') {
-      this.hero.receiveDamage(this.hero.state.hp + 15);
+      this.hero.receiveDamage(this.hero.state.hp + CONSUMABLE_EFFECT.slimeGelHeal);
       return;
     }
 
     if (drop.itemId === 'minor-potion') {
-      this.hero.receiveDamage(this.hero.state.hp + 40);
-      this.hero.recoverMp(25);
+      this.hero.receiveDamage(this.hero.state.hp + CONSUMABLE_EFFECT.minorPotionHealHp);
+      this.hero.recoverMp(CONSUMABLE_EFFECT.minorPotionRecoverMp);
       return;
     }
 
     if (drop.itemId === 'bone-fragment') {
-      this.hero.applyBonus({ maxHp: 8 });
+      this.hero.applyBonus({ maxHp: ITEM_PASSIVE_BONUS.boneFragmentHp });
       return;
     }
 
     if (drop.itemId === 'ancient-core') {
-      this.hero.applyBonus({ maxMp: 10, attack: 2 });
+      this.hero.applyBonus({ maxMp: ITEM_PASSIVE_BONUS.ancientCoreMp, attack: ITEM_PASSIVE_BONUS.ancientCoreAttack });
       return;
     }
 
     if (drop.itemId === 'goblin-coin') {
       const count = this.inventory.get('goblin-coin')?.quantity ?? 0;
-      if (count % 3 === 0) {
+      if (count % ITEM_PASSIVE_BONUS.goblinCoinDefenseEvery === 0) {
         this.hero.applyBonus({ defense: 1 });
       }
     }
@@ -634,17 +688,18 @@ export class MainScene extends Phaser.Scene {
   }
 
   private gainExp(amount: number): void {
+    const combatBalance = getCombatBalance();
     this.heroExp += amount;
     while (this.heroExp >= this.requiredExp(this.heroLevel)) {
       this.heroExp -= this.requiredExp(this.heroLevel);
       this.heroLevel += 1;
       this.skillPoints += 1;
-      this.hero.applyBonus({ maxHp: 12, maxMp: 6, attack: 2, defense: 1 });
+      this.hero.applyBonus(combatBalance.leveling.levelUpBonus);
     }
   }
 
   private requiredExp(level: number): number {
-    return 70 + level * 35;
+    return calcRequiredExp(level);
   }
 
   private tryUnlockSkill(index: number): void {
@@ -660,50 +715,89 @@ export class MainScene extends Phaser.Scene {
 
   private spawnMonsterByWave(wave: number): void {
     this.applyDungeonTheme(wave);
-    this.monstersPerWave = this.resolveMonstersPerWave(wave);
+    const runtimeQueue = this.resolveRuntimeSpawnQueue(wave);
+    this.runtimeSpawnQueue = runtimeQueue;
+    this.monstersPerWave = runtimeQueue.length > 0 ? runtimeQueue.length : this.resolveMonstersPerWave(wave);
     this.defeatedInWave = 0;
     this.spawnNextMonsterInWave();
     this.showWaveBanner(wave);
   }
 
   private spawnNextMonsterInWave(): void {
+    const dungeon1Monsters = getDungeon1Monsters();
     const sequence = this.defeatedInWave + 1;
-    const idx = (this.currentWave + sequence - 2) % dungeon1Monsters.length;
-    const base = dungeon1Monsters[idx];
+    const runtimeSpawn = this.runtimeSpawnQueue.length > 0
+      ? this.runtimeSpawnQueue[(sequence - 1) % this.runtimeSpawnQueue.length]
+      : undefined;
+    this.currentRuntimeSpawn = runtimeSpawn;
+
+    const base = runtimeSpawn
+      ? dungeon1Monsters.find((row) => row.id === runtimeSpawn.monsterId) ?? dungeon1Monsters[0]
+      : dungeon1Monsters[(this.currentWave + sequence - 2) % dungeon1Monsters.length];
     const scaledStats = this.resolveScaledMonsterStats(base.stats, this.currentWave, sequence);
+    const rewardMultiplier = this.resolveCurrentRewardMultiplier(runtimeSpawn, this.currentWave);
     this.monsterDef = {
       ...base,
-      stats: scaledStats
+      stats: scaledStats,
+      reward: {
+        gold: Math.max(1, Math.floor(base.reward.gold * rewardMultiplier.rewardGoldMultiplier)),
+        gem: Math.max(0, Math.floor(base.reward.gem * rewardMultiplier.rewardGemMultiplier)),
+        exp: Math.max(1, Math.floor(base.reward.exp * rewardMultiplier.hpMultiplier)),
+        score: Math.max(1, Math.floor(base.reward.score * rewardMultiplier.attackMultiplier))
+      }
     };
     this.monster = new Fighter(this.monsterDef.name, this.monsterDef.stats);
+    const waveLabel = this.resolveWaveLabel(this.currentWave);
 
     this.monsterNameText.setText(
-      `D${this.currentDungeonIndex} ${this.monsterDef.name} [Wave ${this.currentWave}] (${sequence}/${this.monstersPerWave})`
+      `D${this.currentDungeonIndex} ${this.monsterDef.name} [Wave ${waveLabel}] (${sequence}/${this.monstersPerWave})`
     );
     this.playMonsterBattleAnimation(this.resolveMonsterKind(this.monsterDef.id));
     this.refreshMonsterSupportSprites();
   }
 
   private showWaveBanner(wave: number): void {
-    this.waveBannerText.setText(`DUNGEON ${this.currentDungeonIndex}  WAVE ${wave}`).setAlpha(0).setScale(0.88).setY(28);
+    const waveLabel = this.resolveWaveLabel(wave);
+    this.waveBannerText.setText(`DUNGEON ${this.currentDungeonIndex}  WAVE ${waveLabel}`).setAlpha(1).setScale(1).setY(34);
     this.tweens.killTweensOf(this.waveBannerText);
-    this.tweens.add({
-      targets: this.waveBannerText,
-      alpha: 1,
-      scale: 1,
-      y: 34,
-      duration: 240,
-      yoyo: true,
-      hold: 340,
-      ease: 'Sine.easeOut'
-    });
   }
 
   private applyDungeonTheme(wave: number): void {
-    const cycleWave = ((wave - 1) % 100) + 1;
-    const dungeonIndex = Math.floor((cycleWave - 1) / 10) + 1;
+    const dungeonIndex = resolveDungeonIndexFromWave(wave);
     this.currentDungeonIndex = dungeonIndex;
+    if (this.waveRuntimeConfig) {
+      const { waveGroupNo } = this.resolveWavePattern(wave);
+      const backgroundImagePath = this.waveGroupScalingByNo.get(waveGroupNo)?.backgroundImagePath?.trim();
+      if (backgroundImagePath) {
+        this.applyWaveGroupBackground(backgroundImagePath);
+        return;
+      }
+      this.backgroundImage.setTexture('__WHITE').setTint(0x000000);
+      return;
+    }
     this.backgroundImage.setTexture(`dungeon-bg-${dungeonIndex}`);
+  }
+
+  private applyWaveGroupBackground(path: string): void {
+    const existingKey = this.waveBackgroundKeyByPath.get(path);
+    if (existingKey) {
+      if (this.textures.exists(existingKey)) {
+        this.backgroundImage.clearTint().setTexture(existingKey);
+      }
+      return;
+    }
+
+    const textureKey = this.runtimeBgKey(path);
+    this.waveBackgroundKeyByPath.set(path, textureKey);
+    if (this.textures.exists(textureKey)) {
+      this.backgroundImage.clearTint().setTexture(textureKey);
+    } else {
+      this.backgroundImage.setTexture('__WHITE').setTint(0x000000);
+    }
+  }
+
+  private runtimeBgKey(path: string): string {
+    return `wave-group-bg-${path.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   }
 
   private createHeroAvatar(x: number, y: number): Phaser.GameObjects.Container {
@@ -899,12 +993,15 @@ export class MainScene extends Phaser.Scene {
     const coinCount = this.inventory.get('goblin-coin')?.quantity ?? 0;
 
     if (fragmentCount > 0) {
-      this.hero.applyBonus({ maxHp: fragmentCount * 8 });
+      this.hero.applyBonus({ maxHp: fragmentCount * ITEM_PASSIVE_BONUS.boneFragmentHp });
     }
     if (coreCount > 0) {
-      this.hero.applyBonus({ maxMp: coreCount * 10, attack: coreCount * 2 });
+      this.hero.applyBonus({
+        maxMp: coreCount * ITEM_PASSIVE_BONUS.ancientCoreMp,
+        attack: coreCount * ITEM_PASSIVE_BONUS.ancientCoreAttack
+      });
     }
-    const coinDefense = Math.floor(coinCount / 3);
+    const coinDefense = Math.floor(coinCount / ITEM_PASSIVE_BONUS.goblinCoinDefenseEvery);
     if (coinDefense > 0) {
       this.hero.applyBonus({ defense: coinDefense });
     }
@@ -919,7 +1016,7 @@ export class MainScene extends Phaser.Scene {
       next.attack += bonus.attack;
       next.defense += bonus.defense;
     }
-    const setBonus = this.getSetBonus();
+    const setBonus = calcSetBonus(this.equippedItemIds);
     next.maxHp += setBonus.maxHp;
     next.maxMp += setBonus.maxMp;
     next.attack += setBonus.attack;
@@ -944,45 +1041,12 @@ export class MainScene extends Phaser.Scene {
     if (fromDb) {
       return fromDb;
     }
-    return this.getLegacyEquipBonus(itemId, this.itemUpgradeLevels.get(itemId) ?? 0);
-  }
-
-  private getLegacyEquipBonus(itemId: string, lv: number): { maxHp: number; maxMp: number; attack: number; defense: number } {
-    if (itemId === 'flame-sword') return { maxHp: 0, maxMp: 0, attack: 14 + lv * 3, defense: 0 };
-    if (itemId === 'rusty-dagger') return { maxHp: 0, maxMp: 0, attack: 6 + lv * 2, defense: 0 };
-    if (itemId === 'iron-helm') return { maxHp: 70 + lv * 12, maxMp: 0, attack: 0, defense: 3 + lv };
-    if (itemId === 'guardian-charm') return { maxHp: 20 + lv * 8, maxMp: 0, attack: 0, defense: 5 + lv };
-    if (itemId === 'hunter-ring') return { maxHp: 0, maxMp: 35 + lv * 10, attack: 6 + lv * 2, defense: 0 };
-    return { maxHp: 0, maxMp: 0, attack: 0, defense: 0 };
-  }
-
-  private getSetBonus(): { maxHp: number; maxMp: number; attack: number; defense: number } {
-    let bonus = { maxHp: 0, maxMp: 0, attack: 0, defense: 0 };
-    const equipped = this.equippedItemIds;
-
-    const fortressCount = ['flame-sword', 'iron-helm', 'guardian-charm'].filter((id) => equipped.has(id)).length;
-    if (fortressCount >= 2) {
-      bonus.maxHp += 80;
-      bonus.defense += 4;
-    }
-    if (fortressCount >= 3) {
-      bonus.maxHp += 140;
-      bonus.attack += 10;
-      bonus.defense += 4;
-    }
-
-    const hunterCount = ['rusty-dagger', 'hunter-ring'].filter((id) => equipped.has(id)).length;
-    if (hunterCount >= 2) {
-      bonus.attack += 8;
-      bonus.maxMp += 30;
-    }
-
-    return bonus;
+    return getLegacyEquipBonus(itemId, this.itemUpgradeLevels.get(itemId) ?? 0);
   }
 
   private refreshHud(): void {
     this.heroInfoText.setText(
-      `${this.session.nickname} Lv.${this.heroLevel} (${this.classDef.label})  Wave ${this.currentWave}`
+      `${this.session.nickname} Lv.${this.heroLevel} (${this.classDef.label})  Wave ${this.resolveWaveLabel(this.currentWave)}`
     );
     this.heroHpText.setText(`Hero HP ${this.hero.state.hp}/${this.hero.stats.maxHp}  ATK ${this.hero.stats.attack}`);
     this.heroMpText.setText(`Hero MP ${this.hero.state.mp}/${this.hero.stats.maxMp}  DEF ${this.hero.stats.defense}`);
@@ -994,14 +1058,14 @@ export class MainScene extends Phaser.Scene {
       `Monster MP ${this.monster.state.mp}/${this.monster.stats.maxMp}  DEF ${this.monster.stats.defense}`
     );
 
-    this.skillTreeText.setText(this.formatSkillTreeText(this.classDef.skillTree));
+    //this.skillTreeText.setText(this.formatSkillTreeText(this.classDef.skillTree));
     //this.inventoryText.setText(this.formatInventoryText());
-    this.speedText.setText(`전투 속도: ${this.battleSpeed}x / Wave 고정: ${this.waveLocked ? 'ON' : 'OFF'}`);
+    //this.speedText.setText(`전투 속도: ${this.battleSpeed}x / Wave 고정: ${this.waveLocked ? 'ON' : 'OFF'}`);
     this.refreshRexBars();
 
     const labelText = (this.rexHudLabel as any)?.getElement?.('text');
     if (labelText?.setText) {
-      labelText.setText(`RexUI Combat HUD / ${this.battleSpeed}x / Wave ${this.currentWave}`);
+      labelText.setText(`RexUI Combat HUD / ${this.battleSpeed}x / Wave ${this.resolveWaveLabel(this.currentWave)}`);
     }
   }
 
@@ -1117,45 +1181,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   private playSkillVisualEffect(effect: 'BREAK_ARMOR' | 'ARCANE_ECHO' | 'VAMPIRIC_SHOT'): void {
-    if (effect === 'BREAK_ARMOR') {
-      this.cameras.main.shake(90, 0.0028);
-      const slash = this.add.rectangle(this.monsterBody.x - 6, this.monsterBody.y - 24, 14, 128, 0x86d8ff, 0.72).setAngle(34).setDepth(35);
-      this.tweens.add({
-        targets: slash,
-        alpha: 0,
-        scaleX: 0.2,
-        duration: 170,
-        ease: 'Sine.easeOut',
-        onComplete: () => slash.destroy()
-      });
-      return;
-    }
-
-    if (effect === 'ARCANE_ECHO') {
-      this.cameras.main.flash(120, 130, 80, 175, true);
-      const ring = this.add.circle(this.monsterBody.x, this.monsterBody.y - 32, 16, 0xc389ff, 0.28).setDepth(35);
-      this.tweens.add({
-        targets: ring,
-        scale: 3.1,
-        alpha: 0,
-        duration: 320,
-        ease: 'Cubic.easeOut',
-        onComplete: () => ring.destroy()
-      });
-      return;
-    }
-
-    this.cameras.main.shake(70, 0.0018);
-    const lifesteal = this.add.circle(this.heroBody.x, this.heroBody.y - 26, 12, 0x86ffb0, 0.35).setDepth(35);
-    this.tweens.add({
-      targets: lifesteal,
-      y: lifesteal.y - 36,
-      scale: 1.9,
-      alpha: 0,
-      duration: 300,
-      ease: 'Sine.easeOut',
-      onComplete: () => lifesteal.destroy()
-    });
+    void effect;
+    // 타격 시 화면 번쩍임/반짝임 연출 비활성화
   }
 
   private resolveHeroBaseStats() {
@@ -1175,7 +1202,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private resolveMonstersPerWave(wave: number): number {
-    return Math.min(6, 2 + Math.floor((wave - 1) / 6));
+    return resolveMonstersPerWaveFromBalance(wave);
   }
 
   private resolveScaledMonsterStats(
@@ -1183,16 +1210,105 @@ export class MainScene extends Phaser.Scene {
     wave: number,
     sequence: number
   ): { maxHp: number; maxMp: number; attack: number; defense: number } {
-    const cycleWave = ((wave - 1) % 100) + 1;
-    const dungeonTier = Math.floor((cycleWave - 1) / 10);
-    const hpScale = 1 + (wave - 1) * 0.16 + dungeonTier * 0.22 + (sequence - 1) * 0.06;
-    const attackScale = 1 + (wave - 1) * 0.1 + dungeonTier * 0.16 + (sequence - 1) * 0.04;
-    const defenseScale = 1 + (wave - 1) * 0.08 + dungeonTier * 0.13 + (sequence - 1) * 0.03;
+    if (this.currentRuntimeSpawn) {
+      const merged = this.resolveCurrentRewardMultiplier(this.currentRuntimeSpawn, wave);
+      return {
+        maxHp: Math.max(1, Math.floor(base.maxHp * merged.hpMultiplier)),
+        maxMp: Math.max(1, Math.floor(base.maxMp * merged.mpMultiplier)),
+        attack: Math.max(1, Math.floor(base.attack * merged.attackMultiplier)),
+        defense: Math.max(0, Math.floor(base.defense * merged.defenseMultiplier))
+      };
+    }
+    return resolveScaledMonsterStatsFromBalance(base, wave, sequence);
+  }
+
+  private resolveRuntimeSpawnQueue(wave: number): RuntimeSpawnEntry[] {
+    if (!this.waveRuntimeConfig) {
+      return [];
+    }
+    const mapping = this.resolveWavePattern(wave);
+    const pattern = this.wavePatternByNo.get(mapping.patternWaveNo);
+    const entries = [...(pattern?.entries ?? [])]
+      .filter((row) => row.monsterCount > 0)
+      .sort((a, b) => a.slotNo - b.slotNo);
+    if (entries.length === 0) {
+      return [];
+    }
+    const queue: RuntimeSpawnEntry[] = [];
+    entries.forEach((entry) => {
+      for (let i = 0; i < Math.max(1, entry.monsterCount); i += 1) {
+        queue.push(this.toRuntimeSpawnEntry(entry));
+      }
+    });
+    return queue;
+  }
+
+  private toRuntimeSpawnEntry(entry: WaveRuntimeEntry): RuntimeSpawnEntry {
     return {
-      maxHp: Math.max(base.maxHp, Math.floor(base.maxHp * hpScale)),
-      maxMp: Math.max(base.maxMp, Math.floor(base.maxMp * (1 + (wave - 1) * 0.06))),
-      attack: Math.max(base.attack, Math.floor(base.attack * attackScale)),
-      defense: Math.max(base.defense, Math.floor(base.defense * defenseScale))
+      monsterId: entry.monsterId,
+      hpMultiplier: Math.max(0.01, entry.hpMultiplier),
+      mpMultiplier: Math.max(0.01, entry.mpMultiplier),
+      attackMultiplier: Math.max(0.01, entry.attackMultiplier),
+      defenseMultiplier: Math.max(0.01, entry.defenseMultiplier),
+      rewardGoldMultiplier: Math.max(0.01, entry.rewardGoldMultiplier),
+      rewardGemMultiplier: Math.max(0.01, entry.rewardGemMultiplier)
+    };
+  }
+
+  private resolveWavePattern(wave: number): { waveGroupNo: number; subWaveNo: number; patternWaveNo: number } {
+    const groupSize = Math.max(1, this.waveRuntimeConfig?.patternGroupSize ?? 10);
+    const subWaveSize = Math.max(1, this.waveRuntimeConfig?.subWaveSize ?? 10);
+    const waveGroupNo = Math.floor((wave - 1) / subWaveSize) + 1;
+    const subWaveNo = ((wave - 1) % subWaveSize) + 1;
+    const patternGroupNo = ((waveGroupNo - 1) % groupSize) + 1;
+    const patternWaveNo = (patternGroupNo - 1) * subWaveSize + subWaveNo;
+    return { waveGroupNo, subWaveNo, patternWaveNo };
+  }
+
+  private resolveWaveLabel(wave: number): string {
+    if (!this.waveRuntimeConfig) {
+      return String(wave);
+    }
+    const { waveGroupNo, subWaveNo } = this.resolveWavePattern(wave);
+    return `${waveGroupNo}-${subWaveNo}`;
+  }
+
+  private resolveCurrentRewardMultiplier(
+    runtimeSpawn: RuntimeSpawnEntry | undefined,
+    wave: number
+  ): {
+    hpMultiplier: number;
+    mpMultiplier: number;
+    attackMultiplier: number;
+    defenseMultiplier: number;
+    rewardGoldMultiplier: number;
+    rewardGemMultiplier: number;
+  } {
+    if (!runtimeSpawn || !this.waveRuntimeConfig) {
+      return {
+        hpMultiplier: 1,
+        mpMultiplier: 1,
+        attackMultiplier: 1,
+        defenseMultiplier: 1,
+        rewardGoldMultiplier: 1,
+        rewardGemMultiplier: 1
+      };
+    }
+    const { waveGroupNo } = this.resolveWavePattern(wave);
+    const groupScale = this.waveGroupScalingByNo.get(waveGroupNo);
+    const groupHp = Math.max(0.01, groupScale?.hpMultiplier ?? 1);
+    const groupMp = Math.max(0.01, groupScale?.mpMultiplier ?? 1);
+    const groupAtk = Math.max(0.01, groupScale?.attackMultiplier ?? 1);
+    const groupDef = Math.max(0.01, groupScale?.defenseMultiplier ?? 1);
+    const groupGold = Math.max(0.01, groupScale?.rewardGoldMultiplier ?? 1);
+    const groupGem = Math.max(0.01, groupScale?.rewardGemMultiplier ?? 1);
+    return {
+      hpMultiplier: runtimeSpawn.hpMultiplier * groupHp,
+      mpMultiplier: runtimeSpawn.mpMultiplier * groupMp,
+      attackMultiplier: runtimeSpawn.attackMultiplier * groupAtk,
+      defenseMultiplier: runtimeSpawn.defenseMultiplier * groupDef,
+      rewardGoldMultiplier: runtimeSpawn.rewardGoldMultiplier * groupGold,
+      rewardGemMultiplier: runtimeSpawn.rewardGemMultiplier * groupGem
     };
   }
 

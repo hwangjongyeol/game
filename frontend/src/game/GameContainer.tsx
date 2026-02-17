@@ -1,15 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { StartGame } from './main';
 import { EventBus } from './EventBus';
-import { ActiveCompanionSession, CharacterClassId, PersistentCharacterStats, SessionInventoryItem } from './types';
+import { ActiveCompanionSession, CharacterClassId, PersistentCharacterStats, SessionInventoryItem, WaveRuntimeConfig } from './types';
 
 type Props = {
   playerId: number;
   nickname: string;
   classId: CharacterClassId;
   startWave?: number;
-  waveFxTick?: number;
   hidden?: boolean;
   battleSpeed?: 1 | 2 | 3;
   waveLocked?: boolean;
@@ -17,6 +16,7 @@ type Props = {
   initialInventory?: SessionInventoryItem[];
   activeCompanions?: ActiveCompanionSession[];
   equippedItemIds?: string[];
+  waveRuntimeConfig?: WaveRuntimeConfig;
   onMonsterKill?: (event: {
     killDelta: number;
     goldEarned: number;
@@ -37,7 +37,6 @@ export default function GameContainer({
   nickname,
   classId,
   startWave,
-  waveFxTick,
   hidden,
   battleSpeed,
   waveLocked,
@@ -45,6 +44,7 @@ export default function GameContainer({
   initialInventory,
   activeCompanions,
   equippedItemIds,
+  waveRuntimeConfig,
   onMonsterKill,
   onSkillCooldownUpdate
 }: Props) {
@@ -52,7 +52,6 @@ export default function GameContainer({
   const onMonsterKillRef = useRef<Props['onMonsterKill']>(onMonsterKill);
   const onSkillCooldownUpdateRef = useRef<Props['onSkillCooldownUpdate']>(onSkillCooldownUpdate);
   const gameRef = useRef<Phaser.Game | null>(null);
-  const [waveFxClass, setWaveFxClass] = useState('');
 
   onMonsterKillRef.current = onMonsterKill;
   onSkillCooldownUpdateRef.current = onSkillCooldownUpdate;
@@ -74,6 +73,7 @@ export default function GameContainer({
       initialInventory,
       activeCompanions,
       equippedItemIds,
+      waveRuntimeConfig,
       onMonsterKill: (event) => onMonsterKillRef.current?.(event)
     });
     gameRef.current = game;
@@ -81,7 +81,7 @@ export default function GameContainer({
       gameRef.current = null;
       game.destroy(true);
     };
-  }, [playerId, nickname, classId]);
+  }, [playerId, nickname, classId, waveRuntimeConfig]);
 
   useEffect(() => {
     const game = gameRef.current;
@@ -172,15 +172,8 @@ export default function GameContainer({
     };
   }, [playerId]);
 
-  useEffect(() => {
-    if (!waveFxTick) return;
-    setWaveFxClass('wave-switch-anim');
-    const timer = window.setTimeout(() => setWaveFxClass(''), 420);
-    return () => window.clearTimeout(timer);
-  }, [waveFxTick]);
-
   return (
-    <section className={`game-shell ${waveFxClass} ${hidden ? 'game-shell-hidden' : ''}`.trim()}>
+    <section className={`game-shell ${hidden ? 'game-shell-hidden' : ''}`.trim()}>
       <div ref={hostRef} className="game-stage" />
     </section>
   );

@@ -6,7 +6,9 @@ import com.hwang.game.character.repository.UserCharacterStatRepository;
 import com.hwang.game.common.exception.GameException;
 import com.hwang.game.economy.entity.WalletEntity;
 import com.hwang.game.economy.repository.WalletRepository;
+import com.hwang.game.player.entity.CharacterClassMasterEntity;
 import com.hwang.game.player.entity.UserEntity;
+import com.hwang.game.player.repository.CharacterClassMasterRepository;
 import com.hwang.game.player.model.Player;
 import com.hwang.game.player.repository.PlayerRepository;
 import org.springframework.stereotype.Service;
@@ -24,17 +26,20 @@ public class PlayerService {
     private final PlayerRepository playerRepository;
     private final WalletRepository walletRepository;
     private final UserCharacterStatRepository userCharacterStatRepository;
+    private final CharacterClassMasterRepository characterClassMasterRepository;
 
     public PlayerService(
             AccountRepository accountRepository,
             PlayerRepository playerRepository,
             WalletRepository walletRepository,
-            UserCharacterStatRepository userCharacterStatRepository
+            UserCharacterStatRepository userCharacterStatRepository,
+            CharacterClassMasterRepository characterClassMasterRepository
     ) {
         this.accountRepository = accountRepository;
         this.playerRepository = playerRepository;
         this.walletRepository = walletRepository;
         this.userCharacterStatRepository = userCharacterStatRepository;
+        this.characterClassMasterRepository = characterClassMasterRepository;
     }
 
     @Transactional
@@ -48,7 +53,7 @@ public class PlayerService {
             throw new GameException("CHARACTER_LIMIT_EXCEEDED", "Account can own up to 5 active characters");
         }
 
-        UserEntity savedUser = playerRepository.save(new UserEntity(UUID.randomUUID().toString(), accountId, nickname, normalizeClassId(classId)));
+        UserEntity savedUser = playerRepository.save(new UserEntity(UUID.randomUUID().toString(), accountId, nickname, validateAndNormalizeClassId(classId)));
         WalletEntity savedWallet = walletRepository.save(new WalletEntity(savedUser.getId()));
         userCharacterStatRepository.save(new UserCharacterStatEntity(savedUser.getId()));
         return toPlayer(savedUser, savedWallet.getGold());
@@ -101,21 +106,31 @@ public class PlayerService {
         playerRepository.save(user);
     }
 
-    private Player toPlayer(UserEntity user, long gold) {
-        return new Player(user.getId(), user.getAccountId(), user.getNickname(), normalizeClassId(user.getClassId()), user.getLevel(), gold);
+    @Transactional(readOnly = true)
+    public List<CharacterClassMasterEntity> getActiveClasses() {
+        return characterClassMasterRepository.findByActiveTrueOrderByClassIdAsc();
     }
 
-    private String normalizeClassId(String classId) {
-        if (classId == null) {
-            throw new GameException("INVALID_CLASS_ID", "Invalid classId. allowed: knight, mage, ranger");
+    private Player toPlayer(UserEntity user, long gold) {
+        return new Player(user.getId(), user.getAccountId(), user.getNickname(), normalizeStoredClassId(user.getClassId()), user.getLevel(), gold);
+    }
+
+    private String validateAndNormalizeClassId(String classId) {
+        if (classId == null || classId.isBlank()) {
+            throw new GameException("INVALID_CLASS_ID", "classId is required");
         }
 
         String normalized = classId.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "knight", "warrior", "fighter", "전사" -> "knight";
-            case "mage", "wizard", "sorcerer", "마법사" -> "mage";
-            case "ranger", "archer", "궁수" -> "ranger";
-            default -> throw new GameException("INVALID_CLASS_ID", "Invalid classId. allowed: knight, mage, ranger");
-        };
+        if (!characterClassMasterRepository.existsByClassIdAndActiveTrue(normalized)) {
+            throw new GameException("INVALID_CLASS_ID", "Unknown classId: " + normalized);
+        }
+        return normalized;
+    }
+
+    private String normalizeStoredClassId(String classId) {
+        if (classId == null) {
+            return "";
+        }
+        return classId.trim().toLowerCase(Locale.ROOT);
     }
 }

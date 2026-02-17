@@ -10,6 +10,7 @@ import com.hwang.game.dailyquest.service.DailyQuestService;
 import com.hwang.game.economy.model.CurrencyType;
 import com.hwang.game.economy.service.EconomyService;
 import com.hwang.game.player.entity.UserEntity;
+import com.hwang.game.player.repository.CharacterClassMasterRepository;
 import com.hwang.game.player.service.PlayerService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,19 +22,22 @@ public class CharacterService {
     private final CompanionService companionService;
     private final EconomyService economyService;
     private final DailyQuestService dailyQuestService;
+    private final CharacterClassMasterRepository characterClassMasterRepository;
 
     public CharacterService(
             UserCharacterStatRepository userCharacterStatRepository,
             PlayerService playerService,
             CompanionService companionService,
             EconomyService economyService,
-            DailyQuestService dailyQuestService
+            DailyQuestService dailyQuestService,
+            CharacterClassMasterRepository characterClassMasterRepository
     ) {
         this.userCharacterStatRepository = userCharacterStatRepository;
         this.playerService = playerService;
         this.companionService = companionService;
         this.economyService = economyService;
         this.dailyQuestService = dailyQuestService;
+        this.characterClassMasterRepository = characterClassMasterRepository;
     }
 
     @Transactional
@@ -85,28 +89,12 @@ public class CharacterService {
 
     private UserCharacterStatEntity newUserStat(UserEntity user) {
         UserCharacterStatEntity entity = new UserCharacterStatEntity(user.getId());
-        switch (user.getClassId()) {
-            case "knight" -> {
-                entity.setAttackValue(26);
-                entity.setDefenseValue(10);
-                entity.setMaxHpValue(240);
-                entity.setMaxMpValue(70);
-            }
-            case "mage" -> {
-                entity.setAttackValue(30);
-                entity.setDefenseValue(5);
-                entity.setMaxHpValue(180);
-                entity.setMaxMpValue(120);
-            }
-            case "ranger" -> {
-                entity.setAttackValue(28);
-                entity.setDefenseValue(7);
-                entity.setMaxHpValue(210);
-                entity.setMaxMpValue(90);
-            }
-            default -> {
-            }
-        }
+        characterClassMasterRepository.findById(user.getClassId()).ifPresent(clazz -> {
+            entity.setAttackValue(Math.max(1, clazz.getBaseAttack()));
+            entity.setDefenseValue(Math.max(0, clazz.getBaseDefense()));
+            entity.setMaxHpValue(Math.max(1, clazz.getBaseHp()));
+            entity.setMaxMpValue(Math.max(1, clazz.getBaseMp()));
+        });
         return entity;
     }
 }

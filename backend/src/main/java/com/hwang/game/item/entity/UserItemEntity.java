@@ -130,6 +130,10 @@ public class UserItemEntity {
         this.quantity += amount;
     }
 
+    public void setItemName(String itemName) {
+        this.itemName = itemName;
+    }
+
     public void subtractQuantity(long amount) {
         this.quantity -= amount;
     }

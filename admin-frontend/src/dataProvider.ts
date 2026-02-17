@@ -22,12 +22,16 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 function withId(resource: string, row: any): any {
+  if (resource === 'classMasters') return { ...row, id: row.classId };
   if (resource === 'items') return { ...row, id: row.itemId };
   if (resource === 'monsters') return { ...row, id: row.monsterId };
   if (resource === 'companionMasters') return { ...row, id: row.companionId };
   if (resource === 'userCompanions') return { ...row, id: row.id };
   if (resource === 'monsterDrops') return { ...row, id: row.id };
   if (resource === 'waves') return { ...row, id: row.id };
+  if (resource === 'waveGroups') return { ...row, id: row.id };
+  if (resource === 'itemUpgradeTiers') return { ...row, id: row.id };
+  if (resource === 'balanceProfiles') return { ...row, id: row.profileId };
   return { ...row, id: row.id ?? row.userId };
 }
 
@@ -44,6 +48,10 @@ function paginate(rows: any[], params: GetListParams) {
 async function getListByResource(resource: string, params: GetListParams) {
   if (resource === 'players') {
     const rows = (await api<any[]>('/api/v1/admin/players')).map((r) => withId(resource, r));
+    return paginate(rows, params);
+  }
+  if (resource === 'classMasters') {
+    const rows = (await api<any[]>('/api/v1/admin/classes')).map((r) => withId(resource, r));
     return paginate(rows, params);
   }
   if (resource === 'items') {
@@ -71,6 +79,20 @@ async function getListByResource(resource: string, params: GetListParams) {
   if (resource === 'waves') {
     const dungeonId = String(params.filter?.dungeonId ?? 'dungeon1');
     const rows = (await api<any[]>(`/api/v1/admin/waves/${dungeonId}`)).map((r) => withId(resource, r));
+    return paginate(rows, params);
+  }
+  if (resource === 'waveGroups') {
+    const dungeonId = String(params.filter?.dungeonId ?? 'dungeon1');
+    const rows = (await api<any[]>(`/api/v1/admin/wave-groups/${dungeonId}`)).map((r) => withId(resource, r));
+    return paginate(rows, params);
+  }
+  if (resource === 'itemUpgradeTiers') {
+    const itemId = String(params.filter?.itemId ?? 'flame-sword');
+    const rows = (await api<any[]>(`/api/v1/admin/items/${itemId}/upgrade-tiers`)).map((r) => withId(resource, r));
+    return paginate(rows, params);
+  }
+  if (resource === 'balanceProfiles') {
+    const rows = (await api<any[]>('/api/v1/admin/balance-profiles')).map((r) => withId(resource, r));
     return paginate(rows, params);
   }
   throw new Error(`Unsupported resource: ${resource}`);
@@ -101,6 +123,10 @@ const provider: any = {
       const created = withId(resource, await api<any>('/api/v1/admin/items', { method: 'POST', body: JSON.stringify(params.data) }));
       return { data: created };
     }
+    if (resource === 'classMasters') {
+      const created = withId(resource, await api<any>('/api/v1/admin/classes', { method: 'POST', body: JSON.stringify(params.data) }));
+      return { data: created };
+    }
     if (resource === 'monsters') {
       const created = withId(resource, await api<any>('/api/v1/admin/monsters', { method: 'POST', body: JSON.stringify(params.data) }));
       return { data: created };
@@ -113,8 +139,20 @@ const provider: any = {
       const created = withId(resource, await api<any>('/api/v1/admin/waves', { method: 'POST', body: JSON.stringify(params.data) }));
       return { data: created };
     }
+    if (resource === 'waveGroups') {
+      const created = withId(resource, await api<any>('/api/v1/admin/wave-groups', { method: 'POST', body: JSON.stringify(params.data) }));
+      return { data: created };
+    }
     if (resource === 'companionMasters') {
       const created = withId(resource, await api<any>('/api/v1/admin/companions/masters', { method: 'POST', body: JSON.stringify(params.data) }));
+      return { data: created };
+    }
+    if (resource === 'itemUpgradeTiers') {
+      const created = withId(resource, await api<any>('/api/v1/admin/item-upgrade-tiers', { method: 'POST', body: JSON.stringify(params.data) }));
+      return { data: created };
+    }
+    if (resource === 'balanceProfiles') {
+      const created = withId(resource, await api<any>('/api/v1/admin/balance-profiles', { method: 'POST', body: JSON.stringify(params.data) }));
       return { data: created };
     }
     throw new Error(`Create not supported for ${resource}`);
@@ -123,6 +161,10 @@ const provider: any = {
   update: async (resource: string, params: any) => {
     if (resource === 'players') {
       const updated = withId(resource, await api<any>(`/api/v1/admin/players/${params.id}`, { method: 'PUT', body: JSON.stringify(params.data) }));
+      return { data: updated };
+    }
+    if (resource === 'classMasters') {
+      const updated = withId(resource, await api<any>(`/api/v1/admin/classes/${params.id}`, { method: 'PUT', body: JSON.stringify(params.data) }));
       return { data: updated };
     }
     if (resource === 'items') {
@@ -141,6 +183,10 @@ const provider: any = {
       const updated = withId(resource, await api<any>(`/api/v1/admin/waves/${params.id}`, { method: 'PUT', body: JSON.stringify(params.data) }));
       return { data: updated };
     }
+    if (resource === 'waveGroups') {
+      const updated = withId(resource, await api<any>(`/api/v1/admin/wave-groups/${params.id}`, { method: 'PUT', body: JSON.stringify(params.data) }));
+      return { data: updated };
+    }
     if (resource === 'companionMasters') {
       const updated = withId(
         resource,
@@ -155,6 +201,14 @@ const provider: any = {
       );
       return { data: updated };
     }
+    if (resource === 'itemUpgradeTiers') {
+      const updated = withId(resource, await api<any>(`/api/v1/admin/item-upgrade-tiers/${params.id}`, { method: 'PUT', body: JSON.stringify(params.data) }));
+      return { data: updated };
+    }
+    if (resource === 'balanceProfiles') {
+      const updated = withId(resource, await api<any>(`/api/v1/admin/balance-profiles/${params.id}`, { method: 'PUT', body: JSON.stringify(params.data) }));
+      return { data: updated };
+    }
     throw new Error(`Update not supported for ${resource}`);
   },
 
@@ -163,6 +217,10 @@ const provider: any = {
   delete: async (resource: string, params: any) => {
     if (resource === 'players') {
       await api<void>(`/api/v1/admin/players/${params.id}`, { method: 'DELETE' });
+      return { data: { id: params.id } as any };
+    }
+    if (resource === 'classMasters') {
+      await api<void>(`/api/v1/admin/classes/${params.id}`, { method: 'DELETE' });
       return { data: { id: params.id } as any };
     }
     if (resource === 'items') {
@@ -181,8 +239,20 @@ const provider: any = {
       await api<void>(`/api/v1/admin/waves/${params.id}`, { method: 'DELETE' });
       return { data: { id: params.id } as any };
     }
+    if (resource === 'waveGroups') {
+      await api<void>(`/api/v1/admin/wave-groups/${params.id}`, { method: 'DELETE' });
+      return { data: { id: params.id } as any };
+    }
     if (resource === 'companionMasters') {
       await api<void>(`/api/v1/admin/companions/masters/${params.id}`, { method: 'DELETE' });
+      return { data: { id: params.id } as any };
+    }
+    if (resource === 'itemUpgradeTiers') {
+      await api<void>(`/api/v1/admin/item-upgrade-tiers/${params.id}`, { method: 'DELETE' });
+      return { data: { id: params.id } as any };
+    }
+    if (resource === 'balanceProfiles') {
+      await api<void>(`/api/v1/admin/balance-profiles/${params.id}`, { method: 'DELETE' });
       return { data: { id: params.id } as any };
     }
     throw new Error(`Delete not supported for ${resource}`);

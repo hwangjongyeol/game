@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 public record AdminWaveSettingRequest(
         String dungeonId,
         Integer waveNo,
+        Integer slotNo,
         String monsterId,
         Integer monsterCount,
         BigDecimal hpMultiplier,

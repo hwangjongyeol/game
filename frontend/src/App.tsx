@@ -1,4 +1,4 @@
-import { CSSProperties, FormEvent, ReactElement, SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, SyntheticEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -16,19 +16,10 @@ import {
   Paper,
   Select,
   Stack,
-  Tab,
-  Tabs,
   ToggleButton,
   ToggleButtonGroup,
   Typography
 } from '@mui/material';
-import SportsEsportsRoundedIcon from '@mui/icons-material/SportsEsportsRounded';
-import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
-import ShieldRoundedIcon from '@mui/icons-material/ShieldRounded';
-import AssignmentTurnedInRoundedIcon from '@mui/icons-material/AssignmentTurnedInRounded';
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
-import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
-import ScienceRoundedIcon from '@mui/icons-material/ScienceRounded';
 import {
   AccountResponse,
   CharacterStatResponse,
@@ -47,12 +38,16 @@ import {
   deletePlayer,
   DailyQuestListResponse,
   getCharacterStats,
+  getClasses,
   getDailyQuestList,
   getDungeonProgress,
   getEquipment,
   getEquipmentPresets,
+  getSessionAccount,
   getItemCatalog,
   getPlayersByAccount,
+  getRuntimeBalanceProfile,
+  getWaveRuntimeConfig,
   getUserItems,
   getWallet,
   loginAccount,
@@ -70,71 +65,35 @@ import {
   UserEquipmentResponse,
   UserItemResponse,
   WalletResponse,
+  WaveRuntimeConfigResponse,
   addDailyQuestProgress
 } from './api/client';
+import { setRuntimeBalanceProfile } from './game/balance/dbBalanceAdapter';
 import GameContainer from './game/GameContainer';
-import { classDefinitions, classSelectOptions } from './game/entities/classes';
+import {
+  EQUIPMENT_RARITY_SORT_WEIGHT,
+  EQUIPMENT_UI_META,
+  type EquipmentSlot,
+  calcItemUpgradeGoldCost,
+  calcSetBonus,
+  describeActiveSetEffects
+} from './game/balance/equipmentBalance';
 import { CharacterClassId } from './game/types';
 
-type ViewTab = 'game' | 'inventory' | 'equipment' | 'quest' | 'companionRecruit' | 'companionManage' | 'companionFuse';
+type ViewTab = 'game' | 'stats' | 'inventory' | 'equipment' | 'quest' | 'companionRecruit' | 'companionManage' | 'companionFuse';
 type SortType = 'rarity' | 'name' | 'quantity';
-type EquipmentSlot = 'weapon' | 'armor' | 'accessory';
 type CompanionSlot = 1 | 2 | 3 | 4 | 5;
-type SkillEffect = 'BREAK_ARMOR' | 'ARCANE_ECHO' | 'VAMPIRIC_SHOT';
 
-const viewTabMeta: Array<{ tab: ViewTab; label: string; icon: ReactElement }> = [
-  { tab: 'game', label: '게임', icon: <SportsEsportsRoundedIcon fontSize="small" /> },
-  { tab: 'inventory', label: '인벤토리', icon: <Inventory2RoundedIcon fontSize="small" /> },
-  { tab: 'equipment', label: '장착', icon: <ShieldRoundedIcon fontSize="small" /> },
-  { tab: 'quest', label: '퀘스트', icon: <AssignmentTurnedInRoundedIcon fontSize="small" /> },
-  { tab: 'companionRecruit', label: '동료 뽑기', icon: <AutoAwesomeRoundedIcon fontSize="small" /> },
-  { tab: 'companionManage', label: '동료 설정', icon: <GroupsRoundedIcon fontSize="small" /> },
-  { tab: 'companionFuse', label: '동료 합성', icon: <ScienceRoundedIcon fontSize="small" /> }
+const viewTabMeta: Array<{ tab: ViewTab; label: string }> = [
+  { tab: 'game', label: '게임' },
+  { tab: 'stats', label: '능력치' },
+  { tab: 'inventory', label: '인벤토리' },
+  { tab: 'equipment', label: '장비' },
+  { tab: 'quest', label: '퀘스트' },
+  { tab: 'companionRecruit', label: '동료뽑기' },
+  { tab: 'companionManage', label: '동료' },
+  { tab: 'companionFuse', label: '동료합성' }
 ];
-
-const tabBackgroundClass: Record<ViewTab, string> = {
-  game: 'bg-game',
-  inventory: 'bg-inventory',
-  equipment: 'bg-equipment',
-  quest: 'bg-quest',
-  companionRecruit: 'bg-recruit',
-  companionManage: 'bg-manage',
-  companionFuse: 'bg-fuse'
-};
-
-const tabHeroArt: Record<ViewTab, string> = {
-  game: '/characters/hero-knight.svg',
-  inventory: '/characters/hero-ranger.svg',
-  equipment: '/characters/hero-knight.svg',
-  quest: '/characters/hero-mage.svg',
-  companionRecruit: '/characters/hero-mage.svg',
-  companionManage: '/characters/hero-ranger.svg',
-  companionFuse: '/characters/monster-skeleton.svg'
-};
-
-const rarityOrder: Record<string, number> = {
-  'flame-sword': 5,
-  'ancient-core': 4,
-  'hunter-ring': 4,
-  'iron-helm': 3,
-  'guardian-charm': 3,
-  'rusty-dagger': 3,
-  'minor-potion': 2,
-  'goblin-coin': 2,
-  'bone-fragment': 1,
-  'slime-gel': 1
-};
-
-const equipmentDefs: Record<
-  string,
-  { slot: EquipmentSlot; label: string; effect: string; rarity: 'rare' | 'epic' | 'legend'; icon: string }
-> = {
-  'flame-sword': { slot: 'weapon', label: 'Flame Sword', effect: 'ATK +14', rarity: 'legend', icon: '⚔' },
-  'rusty-dagger': { slot: 'weapon', label: 'Rusty Dagger', effect: 'ATK +6', rarity: 'rare', icon: '🗡' },
-  'iron-helm': { slot: 'armor', label: 'Iron Helm', effect: 'HP +70 / DEF +3', rarity: 'epic', icon: '🛡' },
-  'guardian-charm': { slot: 'accessory', label: 'Guardian Charm', effect: 'DEF +5 / HP +20', rarity: 'epic', icon: '✦' },
-  'hunter-ring': { slot: 'accessory', label: 'Hunter Ring', effect: 'ATK +6 / MP +35', rarity: 'legend', icon: '◉' }
-};
 
 function fromEquipmentResponse(response: UserEquipmentResponse): Record<EquipmentSlot, string | null> {
   return {
@@ -142,11 +101,6 @@ function fromEquipmentResponse(response: UserEquipmentResponse): Record<Equipmen
     armor: response.armorItemId,
     accessory: response.accessoryItemId
   };
-}
-
-function calcItemUpgradeGoldCost(level: number): number {
-  const next = level + 1;
-  return 150 * next * next;
 }
 
 function getEquipBonus(item: UserItemResponse): { attack: number; defense: number; maxHp: number; maxMp: number } {
@@ -173,17 +127,13 @@ function calcProgressiveTotalCost(firstCost: number, step: number, count: number
 }
 
 function normalizeClassId(classId: string | null | undefined): CharacterClassId {
-  if (classId === 'mage' || classId === 'ranger' || classId === 'knight') {
-    return classId;
-  }
-  return 'knight';
+  return (classId ?? '').trim().toLowerCase();
 }
 
-function classLabel(classId: CharacterClassId | null | undefined): string {
-  if (classId === 'knight') return '전사';
-  if (classId === 'mage') return '마법사';
-  if (classId === 'ranger') return '궁수';
-  return '전체';
+function toWaveLabel(wave: number): string {
+  const group = Math.floor((Math.max(1, wave) - 1) / 10) + 1;
+  const sub = ((Math.max(1, wave) - 1) % 10) + 1;
+  return `${group}-${sub}`;
 }
 
 function findNextCompanionSlot(rows: UserCompanionResponse[]): CompanionSlot | null {
@@ -203,6 +153,11 @@ export default function App() {
   const [players, setPlayers] = useState<PlayerResponse[]>([]);
   const [player, setPlayer] = useState<PlayerResponse | null>(null);
   const [classId, setClassId] = useState<CharacterClassId>('knight');
+  const [classOptions, setClassOptions] = useState<Array<{ id: string; label: string }>>([
+    { id: 'knight', label: 'Knight' },
+    { id: 'mage', label: 'Mage' },
+    { id: 'ranger', label: 'Ranger' }
+  ]);
   const [entered, setEntered] = useState(false);
   const [viewTab, setViewTab] = useState<ViewTab>('game');
   const [sortType, setSortType] = useState<SortType>('rarity');
@@ -217,8 +172,8 @@ export default function App() {
   const [inventory, setInventory] = useState<UserItemResponse[]>([]);
   const [currentWave, setCurrentWave] = useState(1);
   const [maxUnlockedWave, setMaxUnlockedWave] = useState(1);
+  const [waveRuntimeConfig, setWaveRuntimeConfig] = useState<WaveRuntimeConfigResponse | undefined>(undefined);
   const [gameSeed, setGameSeed] = useState(0);
-  const [waveFxTick, setWaveFxTick] = useState(0);
   const [pendingWave, setPendingWave] = useState<number | null>(null);
   const [waveSwitching, setWaveSwitching] = useState(false);
   const [waveLocked, setWaveLocked] = useState(false);
@@ -243,13 +198,11 @@ export default function App() {
   const [recruiting, setRecruiting] = useState(false);
   const [assigningCompanionId, setAssigningCompanionId] = useState<number | null>(null);
   const [fusingCompanionId, setFusingCompanionId] = useState<number | null>(null);
-  const [skillCooldown, setSkillCooldown] = useState<{ ratio: number; remainingMs: number; skillName: string; effect: SkillEffect }>({
-    ratio: 1,
-    remainingMs: 0,
-    skillName: classDefinitions[classId].activeSkill.name,
-    effect: classDefinitions[classId].activeSkill.effect
-  });
   const [error, setError] = useState<string | null>(null);
+  const classNameById = useMemo(
+    () => Object.fromEntries(classOptions.map((item) => [item.id, item.label])),
+    [classOptions]
+  );
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -269,6 +222,7 @@ export default function App() {
       setLoading(true);
       const created = await createPlayer(account.accountId, trimmed, classId);
       setPlayer(created);
+      setEntered(true);
       setClassId(normalizeClassId(created.classId));
     } catch (e) {
       setError(e instanceof Error ? e.message : '계정 생성 실패');
@@ -295,14 +249,25 @@ export default function App() {
   };
 
   useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const sessionAccount = await getSessionAccount();
+        if (!mounted || !sessionAccount) return;
+        setAccount(sessionAccount);
+      } catch {
+        // ignore session restore error
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!account) return;
     void handleLoadPlayers();
   }, [account]);
-
-  useEffect(() => {
-    const skill = classDefinitions[classId].activeSkill;
-    setSkillCooldown((prev) => ({ ...prev, skillName: skill.name, effect: skill.effect }));
-  }, [classId]);
 
   const handleAccountSignUp = async () => {
     setError(null);
@@ -351,7 +316,7 @@ export default function App() {
   };
 
   const loadAllPlayerData = useCallback(async (userId: number) => {
-    const [walletResponse, statResponse, questResponse, itemsResponse, progress, equipment, presetRows, itemCatalog, masters, companions, partyBonus] = await Promise.all([
+    const [walletResponse, statResponse, questResponse, itemsResponse, progress, equipment, presetRows, itemCatalog, masters, companions, partyBonus, runtimeBalance, classes, waveRuntime] = await Promise.all([
       getWallet(userId),
       getCharacterStats(userId),
       getDailyQuestList(userId),
@@ -362,7 +327,10 @@ export default function App() {
       getItemCatalog(),
       getCompanionMasters(),
       getUserCompanions(userId),
-      getCompanionPartyBonus(userId)
+      getCompanionPartyBonus(userId),
+      getRuntimeBalanceProfile().catch(() => ({})),
+      getClasses().catch(() => []),
+      getWaveRuntimeConfig('dungeon1').catch(() => undefined)
     ]);
 
     setWallet(walletResponse);
@@ -377,7 +345,28 @@ export default function App() {
     setCompanionMasters(masters);
     setUserCompanions(companions);
     setCompanionPartyBonus(partyBonus);
+    setRuntimeBalanceProfile(runtimeBalance);
+    setWaveRuntimeConfig(waveRuntime);
+    if (classes.length > 0) {
+      setClassOptions(classes.map((row) => ({ id: normalizeClassId(row.classId), label: row.className || row.classId })));
+    }
   }, []);
+
+  useEffect(() => {
+    if (!account) return;
+    void getClasses()
+      .then((classes) => {
+        if (classes.length <= 0) return;
+        const options = classes.map((row) => ({ id: normalizeClassId(row.classId), label: row.className || row.classId }));
+        setClassOptions(options);
+        if (!options.some((item) => item.id === classId)) {
+          setClassId(options[0].id);
+        }
+      })
+      .catch(() => {
+        // keep fallback options
+      });
+  }, [account, classId]);
 
   const handleUpgrade = async (statType: CharacterStatType) => {
     if (!player) return;
@@ -472,6 +461,30 @@ export default function App() {
     setPendingWave(wave);
   };
 
+  const handleWaveSettingChange = (raw: string) => {
+    if (raw === 'last') {
+      setWaveLocked(false);
+      if (currentWave !== maxUnlockedWave) {
+        void handleSelectWave(maxUnlockedWave);
+      }
+      return;
+    }
+    const wave = Number(raw);
+    if (Number.isNaN(wave) || wave < 1) return;
+    setWaveLocked(true);
+    if (wave !== currentWave) {
+      void handleSelectWave(wave);
+    }
+  };
+
+  const cycleBattleSpeed = () => {
+    setBattleSpeed((prev) => {
+      if (prev === 1) return 2;
+      if (prev === 2) return 3;
+      return 1;
+    });
+  };
+
   const confirmSelectWave = async () => {
     if (!player) return;
     if (pendingWave == null) return;
@@ -482,7 +495,6 @@ export default function App() {
       setCurrentWave(next.currentWave);
       setMaxUnlockedWave(next.maxUnlockedWave);
       setGameSeed((prev) => prev + 1);
-      setWaveFxTick((prev) => prev + 1);
       setPendingWave(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : '웨이브 변경 실패');
@@ -521,7 +533,7 @@ export default function App() {
     } else if (sortType === 'quantity') {
       arr.sort((a, b) => b.quantity - a.quantity);
     } else {
-      arr.sort((a, b) => (rarityOrder[b.itemId] ?? 0) - (rarityOrder[a.itemId] ?? 0) || b.quantity - a.quantity);
+      arr.sort((a, b) => (EQUIPMENT_RARITY_SORT_WEIGHT[b.itemId] ?? 0) - (EQUIPMENT_RARITY_SORT_WEIGHT[a.itemId] ?? 0) || b.quantity - a.quantity);
     }
     return arr;
   }, [inventory, sortType]);
@@ -532,13 +544,7 @@ export default function App() {
   );
 
   const activeSetEffects = useMemo(() => {
-    const effects: string[] = [];
-    const fortressCount = ['flame-sword', 'iron-helm', 'guardian-charm'].filter((id) => equippedItemIds.includes(id)).length;
-    if (fortressCount >= 2) effects.push('Fortress 2세트: HP +80 / DEF +4');
-    if (fortressCount >= 3) effects.push('Fortress 3세트: HP +140 / ATK +10 / DEF +4');
-    const hunterCount = ['rusty-dagger', 'hunter-ring'].filter((id) => equippedItemIds.includes(id)).length;
-    if (hunterCount >= 2) effects.push('Hunter 2세트: ATK +8 / MP +30');
-    return effects;
+    return describeActiveSetEffects(equippedItemIds);
   }, [equippedItemIds]);
 
   const totalStatsPreview = useMemo(() => {
@@ -561,22 +567,11 @@ export default function App() {
       total.maxMp += bonus.maxMp;
     }
 
-    const fortressCount = ['flame-sword', 'iron-helm', 'guardian-charm'].filter((id) => equippedItemIds.includes(id)).length;
-    if (fortressCount >= 2) {
-      total.maxHp += 80;
-      total.defense += 4;
-    }
-    if (fortressCount >= 3) {
-      total.maxHp += 140;
-      total.attack += 10;
-      total.defense += 4;
-    }
-
-    const hunterCount = ['rusty-dagger', 'hunter-ring'].filter((id) => equippedItemIds.includes(id)).length;
-    if (hunterCount >= 2) {
-      total.attack += 8;
-      total.maxMp += 30;
-    }
+    const setBonus = calcSetBonus(equippedItemIds);
+    total.attack += setBonus.attack;
+    total.defense += setBonus.defense;
+    total.maxHp += setBonus.maxHp;
+    total.maxMp += setBonus.maxMp;
 
     return total;
   }, [characterStats, inventory, equippedItemIds]);
@@ -617,15 +612,15 @@ export default function App() {
   const equipCandidates = useMemo(() => {
     const playerClass = normalizeClassId(player?.classId);
     const rows = sortedInventory.filter((item) => {
-      if (!equipmentDefs[item.itemId] || item.quantity <= 0) return false;
+      if (!EQUIPMENT_UI_META[item.itemId] || item.quantity <= 0) return false;
       const catalog = itemCatalogById[item.itemId];
       if (!catalog?.requiredClassId) return true;
       return normalizeClassId(catalog.requiredClassId) === playerClass;
     });
     return {
-      weapon: rows.filter((item) => equipmentDefs[item.itemId].slot === 'weapon'),
-      armor: rows.filter((item) => equipmentDefs[item.itemId].slot === 'armor'),
-      accessory: rows.filter((item) => equipmentDefs[item.itemId].slot === 'accessory')
+      weapon: rows.filter((item) => EQUIPMENT_UI_META[item.itemId].slot === 'weapon'),
+      armor: rows.filter((item) => EQUIPMENT_UI_META[item.itemId].slot === 'armor'),
+      accessory: rows.filter((item) => EQUIPMENT_UI_META[item.itemId].slot === 'accessory')
     };
   }, [sortedInventory, itemCatalogById, player?.classId]);
 
@@ -739,7 +734,7 @@ export default function App() {
 
   const handleToggleEquip = async (item: UserItemResponse) => {
     if (!player) return;
-    const meta = equipmentDefs[item.itemId];
+    const meta = EQUIPMENT_UI_META[item.itemId];
     if (!meta || item.quantity <= 0) return;
 
     try {
@@ -779,7 +774,7 @@ export default function App() {
 
   const handleUpgradeItem = async (item: UserItemResponse) => {
     if (!player) return;
-    if (!equipmentDefs[item.itemId]) return;
+    if (!EQUIPMENT_UI_META[item.itemId]) return;
     try {
       setUpgradingItemId(item.itemId);
       await upgradeItem(player.id, item.itemId);
@@ -823,31 +818,12 @@ export default function App() {
     }
   };
 
-  const activeSkillIcon = skillCooldown.effect === 'BREAK_ARMOR' ? '⚔' : skillCooldown.effect === 'ARCANE_ECHO' ? '✦' : '➶';
-  const skillSlots = [
-    { key: 'active', icon: activeSkillIcon, name: skillCooldown.skillName, cooldownSec: skillCooldown.remainingMs / 1000, active: true },
-    { key: 'slot2', icon: '🛡', name: 'Guard', cooldownSec: 0, active: false },
-    { key: 'slot3', icon: '❄', name: 'Nova', cooldownSec: 0, active: false },
-    { key: 'slot4', icon: '⚡', name: 'Burst', cooldownSec: 0, active: false },
-    { key: 'slot5', icon: '☄', name: 'Rage', cooldownSec: 0, active: false },
-    { key: 'slot6', icon: '✺', name: 'Aura', cooldownSec: 0, active: false }
-  ];
   const inBattleLayout = Boolean(player && entered);
-  const overlayPanelVisible = inBattleLayout && viewTab !== 'game';
+  const overlayPanelVisible = inBattleLayout && viewTab !== 'game' && viewTab !== 'stats';
 
   return (
-    <main
-      className={`app-root rpg-shell ${entered ? tabBackgroundClass[viewTab] : 'bg-login'} ${inBattleLayout ? 'in-battle-layout' : ''} ${
-        overlayPanelVisible ? 'overlay-panel-visible' : 'overlay-panel-hidden'
-      }`}
-    >
+    <main className={`app-root rpg-shell ${inBattleLayout ? 'in-battle-layout' : ''} ${overlayPanelVisible ? 'overlay-panel-visible' : 'overlay-panel-hidden'}`}>
       <section className={`panel ${inBattleLayout ? 'floating-overlay-panel' : ''}`}>
-        {entered && (
-          <div className="panel-art">
-            <img src={tabHeroArt[viewTab]} alt={`${viewTab}-art`} />
-            <span>{viewTabMeta.find((tab) => tab.tab === viewTab)?.label}</span>
-          </div>
-        )}
         {!account && (
           <div className="form-box">
             <label htmlFor="loginId">계정 ID</label>
@@ -892,7 +868,7 @@ export default function App() {
 
             <label htmlFor="classId">클래스</label>
             <select id="classId" value={classId} onChange={(e) => setClassId(e.target.value as CharacterClassId)}>
-              {classSelectOptions.map((item) => (
+              {classOptions.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
                 </option>
@@ -920,6 +896,7 @@ export default function App() {
                         type="button"
                         onClick={() => {
                           setPlayer(item);
+                          setEntered(true);
                           setClassId(normalizeClassId(item.classId));
                         }}
                       >
@@ -937,115 +914,6 @@ export default function App() {
                   </li>
                 ))}
               </ul>
-            )}
-          </div>
-        )}
-
-        {player && !entered && (
-          <div className="ready-box">
-            <p>
-              선택 계정: {player.nickname} (ID: {player.id}) / 클래스: {classId}
-            </p>
-            <button onClick={() => setEntered(true)}>게임 입장</button>
-          </div>
-        )}
-
-        {player && entered && viewTab === 'game' && (
-          <div className="wave-box">
-            <h3>웨이브 선택</h3>
-            <p>
-              현재: {currentWave} / 최대: {maxUnlockedWave}
-            </p>
-            <ToggleButtonGroup
-              color="primary"
-              exclusive
-              value={waveLocked ? 'lock' : 'progress'}
-              onChange={(_: SyntheticEvent, value: string | null) => {
-                if (value === 'lock') setWaveLocked(true);
-                if (value === 'progress') setWaveLocked(false);
-              }}
-              fullWidth
-            >
-              <ToggleButton value="progress">진행</ToggleButton>
-              <ToggleButton value="lock">고정</ToggleButton>
-            </ToggleButtonGroup>
-            <FormControl size="small" fullWidth>
-              <InputLabel id="wave-select-label">웨이브</InputLabel>
-              <Select
-                labelId="wave-select-label"
-                value={currentWave}
-                label="웨이브"
-                onChange={(e) => handleSelectWave(Number(e.target.value))}
-              >
-                {Array.from({ length: maxUnlockedWave }, (_, i) => i + 1).map((wave) => (
-                  <MenuItem key={wave} value={wave}>
-                    Wave {wave}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <ToggleButtonGroup
-              color="secondary"
-              exclusive
-              value={battleSpeed}
-              onChange={(_: SyntheticEvent, value: 1 | 2 | 3 | null) => value && setBattleSpeed(value)}
-              fullWidth
-            >
-              <ToggleButton value={1}>X1</ToggleButton>
-              <ToggleButton value={2}>X2</ToggleButton>
-              <ToggleButton value={3}>X3</ToggleButton>
-            </ToggleButtonGroup>
-          </div>
-        )}
-
-        {player && wallet && viewTab === 'game' && (
-          <div className="economy-box">
-            <h3>재화</h3>
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-              <Chip label={`Gold ${wallet.gold}`} color="warning" variant="filled" />
-              <Chip label={`Gem ${wallet.gem}`} color="info" variant="filled" />
-            </Stack>
-          </div>
-        )}
-
-        {player && characterStats && viewTab === 'game' && (
-          <div className="upgrade-box">
-            <h3>능력치 업그레이드</h3>
-            <ToggleButtonGroup
-              color="secondary"
-              exclusive
-              value={upgradeMultiplier}
-              onChange={(_: SyntheticEvent, value: 1 | 10 | 100 | null) => value && setUpgradeMultiplier(value)}
-              fullWidth
-            >
-              <ToggleButton value={1}>X1</ToggleButton>
-              <ToggleButton value={10}>X10</ToggleButton>
-              <ToggleButton value={100}>X100</ToggleButton>
-            </ToggleButtonGroup>
-            <p>ATK {characterStats.attack} (Lv.{characterStats.attackLevel})</p>
-            <button type="button" onClick={() => handleUpgrade('ATTACK')} disabled={upgrading || !canUpgrade.attack}>
-              공격 업 x{upgradeMultiplier} (Gold {upgradeCostPreview?.attack ?? characterStats.nextAttackGoldCost})
-            </button>
-
-            <p>DEF {characterStats.defense} (Lv.{characterStats.defenseLevel})</p>
-            <button type="button" onClick={() => handleUpgrade('DEFENSE')} disabled={upgrading || !canUpgrade.defense}>
-              방어 업 x{upgradeMultiplier} (Gold {upgradeCostPreview?.defense ?? characterStats.nextDefenseGoldCost})
-            </button>
-
-            <p>HP {characterStats.maxHp} (Lv.{characterStats.hpLevel})</p>
-            <button type="button" onClick={() => handleUpgrade('MAX_HP')} disabled={upgrading || !canUpgrade.hp}>
-              HP 업 x{upgradeMultiplier} (Gold {upgradeCostPreview?.hp ?? characterStats.nextHpGoldCost})
-            </button>
-
-            <p>MP {characterStats.maxMp} (Lv.{characterStats.mpLevel})</p>
-            <button type="button" onClick={() => handleUpgrade('MAX_MP')} disabled={upgrading || !canUpgrade.mp}>
-              MP 업 x{upgradeMultiplier} (Gold {upgradeCostPreview?.mp ?? characterStats.nextMpGoldCost})
-            </button>
-            {totalStatsPreview && (
-              <p>
-                합산(장비/세트 포함) ATK {totalStatsPreview.attack} / DEF {totalStatsPreview.defense} / HP{' '}
-                {totalStatsPreview.maxHp} / MP {totalStatsPreview.maxMp}
-              </p>
             )}
           </div>
         )}
@@ -1074,7 +942,7 @@ export default function App() {
                   <Card
                     key={`${item.itemId}-${item.userId}`}
                     variant="outlined"
-                    className={equipmentDefs[item.itemId] ? `rarity-${equipmentDefs[item.itemId].rarity}` : ''}
+                    className={EQUIPMENT_UI_META[item.itemId] ? `rarity-${EQUIPMENT_UI_META[item.itemId].rarity}` : ''}
                     sx={{ backgroundColor: '#131c31', animationDelay: `${Math.min(idx, 12) * 50}ms` }}
                     classes={{ root: 'ui-stagger-card' }}
                   >
@@ -1099,19 +967,19 @@ export default function App() {
                         }
                       >
                         <ListItemText
-                          primary={`${equipmentDefs[item.itemId] ? `${equipmentDefs[item.itemId].icon} ` : ''}${item.itemName}${
+                          primary={`${EQUIPMENT_UI_META[item.itemId] ? `${EQUIPMENT_UI_META[item.itemId].icon} ` : ''}${item.itemName}${
                             item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : ''
                           }`}
                           secondary={
                             <>
-                              {equipmentDefs[item.itemId] && (
+                              {EQUIPMENT_UI_META[item.itemId] && (
                                 <Typography component="span" variant="caption" sx={{ display: 'block', color: '#9fc2ff' }}>
                                   {formatItemBonus(item)}
                                 </Typography>
                               )}
                               {itemCatalogById[item.itemId]?.requiredClassId && (
                                 <Typography component="span" variant="caption" sx={{ color: '#9fc2ff' }}>
-                                  직업: {classLabel(normalizeClassId(itemCatalogById[item.itemId].requiredClassId))}
+                                  직업: {classNameById[normalizeClassId(itemCatalogById[item.itemId].requiredClassId)] ?? normalizeClassId(itemCatalogById[item.itemId].requiredClassId)}
                                   {normalizeClassId(itemCatalogById[item.itemId].requiredClassId) !== currentPlayerClass && ' (장착 불가)'}
                                 </Typography>
                               )}
@@ -1197,7 +1065,7 @@ export default function App() {
                 <Card
                   key={`equip-${equipmentViewSlot}-${item.itemId}-${item.userId}`}
                   variant="outlined"
-                  className={`rarity-${equipmentDefs[item.itemId].rarity}`}
+                  className={`rarity-${EQUIPMENT_UI_META[item.itemId].rarity}`}
                   sx={{ backgroundColor: '#131c31', animationDelay: `${Math.min(idx, 12) * 50}ms` }}
                   classes={{ root: 'ui-stagger-card' }}
                 >
@@ -1214,16 +1082,18 @@ export default function App() {
                             onClick={() => handleUpgradeItem(item)}
                             disabled={upgradingItemId === item.itemId}
                           >
-                            {upgradingItemId === item.itemId ? '강화중' : `강화 ${calcItemUpgradeGoldCost(item.upgradeLevel)}G`}
+                            {upgradingItemId === item.itemId
+                              ? '강화중'
+                              : `강화 ${calcItemUpgradeGoldCost(item.upgradeLevel, itemCatalogById[item.itemId]?.upgradeGoldBase)}G`}
                           </Button>
                           <Button type="button" size="small" variant="contained" onClick={() => handleToggleEquip(item)}>
-                            {equipped[equipmentDefs[item.itemId].slot] === item.itemId ? '해제' : '장착'}
+                            {equipped[EQUIPMENT_UI_META[item.itemId].slot] === item.itemId ? '해제' : '장착'}
                           </Button>
                         </Stack>
                       }
                     >
                       <ListItemText
-                        primary={`${equipmentDefs[item.itemId].icon} ${item.itemName} ${
+                        primary={`${EQUIPMENT_UI_META[item.itemId].icon} ${item.itemName} ${
                           item.upgradeLevel > 0 ? `+${item.upgradeLevel}` : ''
                         }`}
                         secondary={<Typography variant="caption" sx={{ color: '#9fc2ff' }}>{formatItemBonus(item)}</Typography>}
@@ -1454,19 +1324,80 @@ export default function App() {
       {player && entered && characterStats && (
         <section className="battle-stage-wrap">
           <header className="battle-topbar">
-            <div className="battle-profile">
-              <img src={`/characters/hero-${classId}.svg`} alt={`${classId}-avatar`} className="battle-avatar" />
-              <div>
-                <strong>{player.nickname}</strong>
-                <p>Lv.{Math.max(1, Math.floor((characterStats.attackLevel + characterStats.defenseLevel) / 2))} / Wave {currentWave}</p>
+            <div className="battle-top-left">
+              <div className="battle-profile">
+                <div>
+                  <strong>{player.nickname}</strong>
+                  <p>Lv.{Math.max(1, Math.floor((characterStats.attackLevel + characterStats.defenseLevel) / 2))} / Wave {currentWave}</p>
+                </div>
+              </div>
+              <div className="battle-currency">
+                <span>G {wallet?.gold ?? 0}</span>
+                <span>M {wallet?.gem ?? 0}</span>
+              </div>
+              <div className="battle-wave-controls">
+                <select value={waveLocked ? String(currentWave) : 'last'} onChange={(e) => handleWaveSettingChange(e.target.value)}>
+                  <option value="last">마지막 Wave 진행</option>
+                  {Array.from({ length: maxUnlockedWave }, (_, i) => i + 1).map((wave) => (
+                    <option key={`top-wave-${wave}`} value={wave}>
+                      Wave {toWaveLabel(wave)}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-            <div className="battle-currency">
-              <span>Gold {wallet?.gold ?? 0}</span>
-              <span>Gem {wallet?.gem ?? 0}</span>
-              <span>Companion {userCompanions.length}</span>
-            </div>
           </header>
+
+          {viewTab === 'stats' && (
+            <aside className="battle-stat-box">
+              <div className="battle-stat-head">
+                <strong>능력치</strong>
+                <span>Gold {wallet?.gold ?? 0}</span>
+              </div>
+              <div className="battle-stat-multi">
+                <button type="button" className={upgradeMultiplier === 1 ? 'active' : ''} onClick={() => setUpgradeMultiplier(1)}>
+                  x1
+                </button>
+                <button type="button" className={upgradeMultiplier === 10 ? 'active' : ''} onClick={() => setUpgradeMultiplier(10)}>
+                  x10
+                </button>
+                <button type="button" className={upgradeMultiplier === 100 ? 'active' : ''} onClick={() => setUpgradeMultiplier(100)}>
+                  x100
+                </button>
+              </div>
+              <div className="battle-stat-row">
+                <p>ATK {characterStats.attack} (Lv.{characterStats.attackLevel})</p>
+                <button type="button" onClick={() => handleUpgrade('ATTACK')} disabled={upgrading || !canUpgrade.attack}>
+                  + ({upgradeCostPreview?.attack ?? characterStats.nextAttackGoldCost}G)
+                </button>
+              </div>
+              <div className="battle-stat-row">
+                <p>DEF {characterStats.defense} (Lv.{characterStats.defenseLevel})</p>
+                <button type="button" onClick={() => handleUpgrade('DEFENSE')} disabled={upgrading || !canUpgrade.defense}>
+                  + ({upgradeCostPreview?.defense ?? characterStats.nextDefenseGoldCost}G)
+                </button>
+              </div>
+              <div className="battle-stat-row">
+                <p>HP {characterStats.maxHp} (Lv.{characterStats.hpLevel})</p>
+                <button type="button" onClick={() => handleUpgrade('MAX_HP')} disabled={upgrading || !canUpgrade.hp}>
+                  + ({upgradeCostPreview?.hp ?? characterStats.nextHpGoldCost}G)
+                </button>
+              </div>
+              <div className="battle-stat-row">
+                <p>MP {characterStats.maxMp} (Lv.{characterStats.mpLevel})</p>
+                <button type="button" onClick={() => handleUpgrade('MAX_MP')} disabled={upgrading || !canUpgrade.mp}>
+                  + ({upgradeCostPreview?.mp ?? characterStats.nextMpGoldCost}G)
+                </button>
+              </div>
+              {totalStatsPreview && (
+                <div className="battle-stat-total">
+                  총합 ATK {totalStatsPreview.attack} / DEF {totalStatsPreview.defense}
+                  <br />
+                  HP {totalStatsPreview.maxHp} / MP {totalStatsPreview.maxMp}
+                </div>
+              )}
+            </aside>
+          )}
 
           <GameContainer
             key={`${player.id}-${gameSeed}`}
@@ -1474,11 +1405,11 @@ export default function App() {
             nickname={player.nickname}
             classId={classId}
             startWave={currentWave}
-            waveFxTick={waveFxTick}
-            hidden={viewTab !== 'game'}
+            hidden={viewTab !== 'game' && viewTab !== 'stats'}
             battleSpeed={battleSpeed}
             waveLocked={waveLocked}
             equippedItemIds={equippedItemIds}
+            waveRuntimeConfig={waveRuntimeConfig}
             onMonsterKill={handleMonsterKill}
             initialInventory={inventory.map((item) => ({
               itemId: item.itemId,
@@ -1503,38 +1434,19 @@ export default function App() {
               maxHp: characterStats.maxHp,
               maxMp: characterStats.maxMp
             }}
-            onSkillCooldownUpdate={(event) => {
-              setSkillCooldown({
-                ratio: event.ratio,
-                remainingMs: event.remainingMs,
-                skillName: event.skillName,
-                effect: event.effect
-              });
-            }}
           />
 
-          <footer className="battle-bottom-nav">
+          <button type="button" className="battle-speed-cycle" onClick={cycleBattleSpeed}>
+            {battleSpeed}X
+          </button>
+
+          <footer className="battle-left-mini-menu">
             {viewTabMeta.map((tab) => (
               <button key={`bottom-${tab.tab}`} type="button" onClick={() => setViewTab(tab.tab)} className={viewTab === tab.tab ? 'active' : ''}>
                 {tab.label}
               </button>
             ))}
           </footer>
-
-          <div className="battle-skillbar">
-            {skillSlots.map((slot) => (
-              <div
-                key={slot.key}
-                className={`skill-slot ${slot.active ? 'active' : ''}`}
-                style={slot.active ? ({ ['--cooldown-ratio' as string]: `${Math.max(0, Math.min(1, skillCooldown.ratio))}` } as CSSProperties) : undefined}
-              >
-                <span className="skill-icon">{slot.icon}</span>
-                <small>{slot.name}</small>
-                {slot.active && slot.cooldownSec > 0.2 && <em>{slot.cooldownSec.toFixed(1)}</em>}
-                {slot.active && slot.cooldownSec <= 0.2 && <em>READY</em>}
-              </div>
-            ))}
-          </div>
         </section>
       )}
 

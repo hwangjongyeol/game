@@ -40,6 +40,11 @@ public class AccountService {
     }
 
     @Transactional(readOnly = true)
+    public AccountResponse getAccountResponse(long accountId) {
+        return AccountResponse.from(getAccount(accountId));
+    }
+
+    @Transactional(readOnly = true)
     public AccountEntity getAccount(long accountId) {
         return accountRepository.findById(accountId)
                 .orElseThrow(() -> new GameException("ACCOUNT_NOT_FOUND", "Account not found. id=" + accountId));

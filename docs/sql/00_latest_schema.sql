@@ -3,6 +3,11 @@
 -- 목적: 신규 DB(빈 스키마)에 최신 구조를 한 번에 생성
 -- 주의: 기존 운영 데이터가 있는 DB에는 백업 후 적용하세요.
 
+echo 'export PATH="$(brew --prefix mysql-client)/bin:$PATH"' >> ~/.zprofile
+source ~/.zprofile
+ mysql -u sysbatch -p sys_batch < docs/sql/24_add_wave_group_background_image_path.sql
+
+
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -31,6 +36,18 @@ CREATE TABLE users (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uk_users_external_id UNIQUE (external_id),
     CONSTRAINT fk_users_account FOREIGN KEY (account_id) REFERENCES accounts (id)
+);
+
+CREATE TABLE character_class_masters (
+    class_id VARCHAR(20) PRIMARY KEY,
+    class_name VARCHAR(60) NOT NULL,
+    base_attack INT NOT NULL DEFAULT 20,
+    base_defense INT NOT NULL DEFAULT 10,
+    base_hp INT NOT NULL DEFAULT 200,
+    base_mp INT NOT NULL DEFAULT 80,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE account_social_links (
@@ -177,6 +194,21 @@ CREATE TABLE item_masters (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+CREATE TABLE item_upgrade_tiers (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    item_id VARCHAR(80) NOT NULL,
+    upgrade_level INT NOT NULL,
+    upgrade_gold_cost BIGINT NOT NULL DEFAULT 0,
+    attack_bonus INT NOT NULL DEFAULT 0,
+    defense_bonus INT NOT NULL DEFAULT 0,
+    hp_bonus INT NOT NULL DEFAULT 0,
+    mp_bonus INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_item_upgrade_tiers_item FOREIGN KEY (item_id) REFERENCES item_masters (item_id),
+    CONSTRAINT uk_item_upgrade_tiers UNIQUE (item_id, upgrade_level)
+);
+
 CREATE TABLE monster_masters (
     monster_id VARCHAR(80) PRIMARY KEY,
     monster_name VARCHAR(120) NOT NULL,
@@ -213,8 +245,27 @@ CREATE TABLE wave_settings (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     dungeon_id VARCHAR(40) NOT NULL,
     wave_no INT NOT NULL,
+    slot_no INT NOT NULL DEFAULT 1,
     monster_id VARCHAR(80) NOT NULL,
     monster_count INT NOT NULL DEFAULT 1,
+    hp_multiplier DECIMAL(8,4) NOT NULL DEFAULT 1.0000,
+    mp_multiplier DECIMAL(8,4) NOT NULL DEFAULT 1.0000,
+    attack_multiplier DECIMAL(8,4) NOT NULL DEFAULT 1.0000,
+    defense_multiplier DECIMAL(8,4) NOT NULL DEFAULT 1.0000,
+    reward_gold_multiplier DECIMAL(8,4) NOT NULL DEFAULT 1.0000,
+    reward_gem_multiplier DECIMAL(8,4) NOT NULL DEFAULT 1.0000,
+    background_image_path VARCHAR(255) NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_wave_settings_monster FOREIGN KEY (monster_id) REFERENCES monster_masters (monster_id),
+    CONSTRAINT uk_wave_settings_unique UNIQUE (dungeon_id, wave_no, slot_no)
+);
+
+CREATE TABLE wave_group_scalings (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    dungeon_id VARCHAR(40) NOT NULL,
+    wave_group_no INT NOT NULL,
     hp_multiplier DECIMAL(8,4) NOT NULL DEFAULT 1.0000,
     mp_multiplier DECIMAL(8,4) NOT NULL DEFAULT 1.0000,
     attack_multiplier DECIMAL(8,4) NOT NULL DEFAULT 1.0000,
@@ -224,8 +275,17 @@ CREATE TABLE wave_settings (
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_wave_settings_monster FOREIGN KEY (monster_id) REFERENCES monster_masters (monster_id),
-    CONSTRAINT uk_wave_settings_unique UNIQUE (dungeon_id, wave_no)
+    CONSTRAINT uk_wave_group_scalings_unique UNIQUE (dungeon_id, wave_group_no)
+);
+
+CREATE TABLE admin_balance_profiles (
+    profile_id VARCHAR(80) PRIMARY KEY,
+    profile_name VARCHAR(120) NOT NULL,
+    description VARCHAR(255) NOT NULL DEFAULT '',
+    profile_json LONGTEXT NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE companion_masters (
@@ -260,6 +320,7 @@ CREATE TABLE user_companions (
 
 CREATE INDEX idx_users_nickname ON users (nickname);
 CREATE INDEX idx_users_account_deleted ON users (account_id, is_deleted);
+CREATE INDEX idx_class_masters_active ON character_class_masters (is_active);
 CREATE INDEX idx_economy_user_created ON economy_transactions (user_id, created_at DESC);
 CREATE INDEX idx_economy_reason_created ON economy_transactions (reason_code, created_at DESC);
 CREATE INDEX idx_economy_currency_type ON economy_transactions (currency_type);
@@ -278,10 +339,13 @@ CREATE INDEX idx_user_equipment_armor ON user_equipment (armor_item_id);
 CREATE INDEX idx_user_equipment_accessory ON user_equipment (accessory_item_id);
 CREATE INDEX idx_user_equipment_presets_user ON user_equipment_presets (user_id);
 CREATE INDEX idx_item_masters_type_active ON item_masters (item_type, is_active);
+CREATE INDEX idx_item_upgrade_tiers_item_level ON item_upgrade_tiers (item_id, upgrade_level);
 CREATE INDEX idx_monster_masters_active ON monster_masters (is_active);
 CREATE INDEX idx_monster_drop_monster ON monster_drop_tables (monster_id);
 CREATE INDEX idx_monster_drop_item ON monster_drop_tables (item_id);
-CREATE INDEX idx_wave_settings_dungeon ON wave_settings (dungeon_id, wave_no);
+CREATE INDEX idx_wave_settings_dungeon ON wave_settings (dungeon_id, wave_no, slot_no);
+CREATE INDEX idx_wave_group_scalings_dungeon ON wave_group_scalings (dungeon_id, wave_group_no);
+CREATE INDEX idx_admin_balance_profiles_active_updated ON admin_balance_profiles (is_active, updated_at DESC);
 CREATE INDEX idx_companion_masters_active ON companion_masters (is_active);
 CREATE INDEX idx_companion_masters_class_grade ON companion_masters (class_id, grade);
 CREATE INDEX idx_user_companions_user_slot ON user_companions (user_id, slot_no);
@@ -322,6 +386,20 @@ ON DUPLICATE KEY UPDATE
     description = VALUES(description),
     is_active = VALUES(is_active);
 
+INSERT INTO character_class_masters (
+    class_id, class_name, base_attack, base_defense, base_hp, base_mp, is_active
+) VALUES
+    ('knight', 'Knight', 26, 10, 240, 70, 1),
+    ('mage', 'Mage', 30, 5, 180, 120, 1),
+    ('ranger', 'Ranger', 28, 7, 210, 90, 1)
+ON DUPLICATE KEY UPDATE
+    class_name = VALUES(class_name),
+    base_attack = VALUES(base_attack),
+    base_defense = VALUES(base_defense),
+    base_hp = VALUES(base_hp),
+    base_mp = VALUES(base_mp),
+    is_active = VALUES(is_active);
+
 INSERT INTO monster_masters (
     monster_id, monster_name, max_hp, max_mp, attack, defense,
     reward_gold, reward_gem, reward_exp, reward_score, sprite_key, is_active
@@ -343,13 +421,13 @@ ON DUPLICATE KEY UPDATE
     is_active = VALUES(is_active);
 
 INSERT INTO wave_settings (
-    dungeon_id, wave_no, monster_id, monster_count,
+    dungeon_id, wave_no, slot_no, monster_id, monster_count,
     hp_multiplier, mp_multiplier, attack_multiplier, defense_multiplier,
     reward_gold_multiplier, reward_gem_multiplier, is_active
 ) VALUES
-    ('dungeon1', 1, 'slime-green', 2, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1),
-    ('dungeon1', 2, 'goblin-guard', 2, 1.0500, 1.0000, 1.0500, 1.0200, 1.0200, 1.0000, 1),
-    ('dungeon1', 3, 'skeleton-warrior', 3, 1.1000, 1.0500, 1.1000, 1.0500, 1.0500, 1.0200, 1)
+    ('dungeon1', 1, 1, 'slime-green', 2, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1),
+    ('dungeon1', 2, 1, 'goblin-guard', 2, 1.0500, 1.0000, 1.0500, 1.0200, 1.0200, 1.0000, 1),
+    ('dungeon1', 3, 1, 'skeleton-warrior', 3, 1.1000, 1.0500, 1.1000, 1.0500, 1.0500, 1.0200, 1)
 ON DUPLICATE KEY UPDATE
     monster_id = VALUES(monster_id),
     monster_count = VALUES(monster_count),
@@ -359,6 +437,23 @@ ON DUPLICATE KEY UPDATE
     defense_multiplier = VALUES(defense_multiplier),
     reward_gold_multiplier = VALUES(reward_gold_multiplier),
     reward_gem_multiplier = VALUES(reward_gem_multiplier),
+    is_active = VALUES(is_active);
+
+INSERT INTO wave_group_scalings (
+    dungeon_id, wave_group_no,
+    hp_multiplier, mp_multiplier, attack_multiplier, defense_multiplier,
+    reward_gold_multiplier, reward_gem_multiplier, background_image_path, is_active
+) VALUES
+    ('dungeon1', 1, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, '/dungeons/dungeon-1.png', 1),
+    ('dungeon1', 2, 1.1200, 1.0400, 1.1000, 1.0800, 1.0500, 1.0200, '/dungeons/dungeon-2.png', 1)
+ON DUPLICATE KEY UPDATE
+    hp_multiplier = VALUES(hp_multiplier),
+    mp_multiplier = VALUES(mp_multiplier),
+    attack_multiplier = VALUES(attack_multiplier),
+    defense_multiplier = VALUES(defense_multiplier),
+    reward_gold_multiplier = VALUES(reward_gold_multiplier),
+    reward_gem_multiplier = VALUES(reward_gem_multiplier),
+    background_image_path = VALUES(background_image_path),
     is_active = VALUES(is_active);
 
 INSERT INTO monster_drop_tables (
@@ -415,6 +510,21 @@ ON DUPLICATE KEY UPDATE
     base_mp = VALUES(base_mp),
     image_url = VALUES(image_url),
     recruit_weight = VALUES(recruit_weight),
+    is_active = VALUES(is_active);
+
+INSERT INTO admin_balance_profiles (
+    profile_id, profile_name, description, profile_json, is_active
+) VALUES (
+    'default',
+    'default',
+    'runtime balance profile',
+    '{}',
+    1
+)
+ON DUPLICATE KEY UPDATE
+    profile_name = VALUES(profile_name),
+    description = VALUES(description),
+    profile_json = VALUES(profile_json),
     is_active = VALUES(is_active);
 
 SET FOREIGN_KEY_CHECKS = 1;

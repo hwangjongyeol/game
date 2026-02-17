@@ -16,6 +16,8 @@ tags:
   - name: Character
   - name: DailyQuest
   - name: Dungeon
+  - name: Admin
+  - name: Balance
 
 paths:
   /api/v1/players:
@@ -646,6 +648,224 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /api/v1/balance/runtime:
+    get:
+      tags: [Balance]
+      summary: Get active runtime balance profile JSON
+      operationId: getRuntimeBalanceProfile
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/admin/balance-profiles:
+    get:
+      tags: [Admin]
+      summary: Get balance profiles
+      operationId: getBalanceProfiles
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObjectList'
+    post:
+      tags: [Admin]
+      summary: Create balance profile
+      operationId: createBalanceProfile
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
+  /api/v1/admin/balance-profiles/{profileId}:
+    put:
+      tags: [Admin]
+      summary: Update balance profile
+      operationId: updateBalanceProfile
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      tags: [Admin]
+      summary: Delete balance profile
+      operationId: deleteBalanceProfile
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+
+  /api/v1/classes:
+    get:
+      tags: [Balance]
+      summary: Get active class masters
+      operationId: getClassMastersPublic
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObjectList'
+
+  /api/v1/admin/classes:
+    get:
+      tags: [Admin]
+      summary: Get class masters
+      operationId: getClassMastersAdmin
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObjectList'
+    post:
+      tags: [Admin]
+      summary: Create class master
+      operationId: createClassMaster
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
+  /api/v1/admin/classes/{classId}:
+    put:
+      tags: [Admin]
+      summary: Update class master
+      operationId: updateClassMaster
+      parameters:
+        - name: classId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      tags: [Admin]
+      summary: Delete class master (deactivate)
+      operationId: deleteClassMaster
+      parameters:
+        - name: classId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+
+  /api/v1/admin/items/{itemId}/upgrade-tiers:
+    get:
+      tags: [Admin]
+      summary: Get item upgrade tiers
+      operationId: getItemUpgradeTiers
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObjectList'
+
+  /api/v1/admin/item-upgrade-tiers:
+    post:
+      tags: [Admin]
+      summary: Create item upgrade tier
+      operationId: createItemUpgradeTier
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+
+  /api/v1/admin/item-upgrade-tiers/{tierId}:
+    put:
+      tags: [Admin]
+      summary: Update item upgrade tier
+      operationId: updateItemUpgradeTier
+      parameters:
+        - name: tierId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseObject'
+    delete:
+      tags: [Admin]
+      summary: Delete item upgrade tier
+      operationId: deleteItemUpgradeTier
+      parameters:
+        - name: tierId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+
 components:
   responses:
     BadRequest:
@@ -676,6 +896,46 @@ components:
         data:
           nullable: true
         error:
+          $ref: '#/components/schemas/ApiError'
+      required: [success, data, error]
+
+    ApiResponseObject:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          additionalProperties: true
+        error:
+          nullable: true
+          $ref: '#/components/schemas/ApiError'
+      required: [success, data, error]
+
+    ApiResponseObjectList:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        error:
+          nullable: true
+          $ref: '#/components/schemas/ApiError'
+      required: [success, data, error]
+
+    ApiResponseVoid:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          nullable: true
+        error:
+          nullable: true
           $ref: '#/components/schemas/ApiError'
       required: [success, data, error]
 

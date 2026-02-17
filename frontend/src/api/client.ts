@@ -21,7 +21,7 @@ export type PlayerResponse = {
   id: number;
   accountId: number;
   nickname: string;
-  classId: 'knight' | 'mage' | 'ranger';
+  classId: string;
   level: number;
   gold: number;
 };
@@ -88,7 +88,7 @@ export type ItemMasterResponse = {
   itemName: string;
   itemType: 'MATERIAL' | 'CONSUMABLE' | 'EQUIPMENT';
   equipSlot: 'weapon' | 'armor' | 'accessory' | null;
-  requiredClassId: 'knight' | 'mage' | 'ranger' | null;
+  requiredClassId: string | null;
   quality: string;
   attackBonus: number;
   defenseBonus: number;
@@ -139,7 +139,7 @@ export type CompanionMasterResponse = {
   companionId: string;
   companionName: string;
   grade: string;
-  classId: 'knight' | 'mage' | 'ranger';
+  classId: string;
   baseAttack: number;
   baseDefense: number;
   baseHp: number;
@@ -155,7 +155,7 @@ export type UserCompanionResponse = {
   companionId: string;
   companionName: string;
   grade: string;
-  classId: 'knight' | 'mage' | 'ranger';
+  classId: string;
   level: number;
   copies: number;
   slotNo: number | null;
@@ -218,6 +218,56 @@ export type DungeonProgressResponse = {
   maxUnlockedWave: number;
 };
 
+export type WaveRuntimeEntryResponse = {
+  slotNo: number;
+  monsterId: string;
+  monsterCount: number;
+  hpMultiplier: number;
+  mpMultiplier: number;
+  attackMultiplier: number;
+  defenseMultiplier: number;
+  rewardGoldMultiplier: number;
+  rewardGemMultiplier: number;
+};
+
+export type WavePatternRuntimeResponse = {
+  patternWaveNo: number;
+  patternGroupNo: number;
+  subWaveNo: number;
+  entries: WaveRuntimeEntryResponse[];
+};
+
+export type WaveGroupScalingRuntimeResponse = {
+  waveGroupNo: number;
+  hpMultiplier: number;
+  mpMultiplier: number;
+  attackMultiplier: number;
+  defenseMultiplier: number;
+  rewardGoldMultiplier: number;
+  rewardGemMultiplier: number;
+  backgroundImagePath: string | null;
+};
+
+export type WaveRuntimeConfigResponse = {
+  dungeonId: string;
+  patternGroupSize: number;
+  subWaveSize: number;
+  patterns: WavePatternRuntimeResponse[];
+  waveGroupScalings: WaveGroupScalingRuntimeResponse[];
+};
+
+export type RuntimeBalanceProfileResponse = Record<string, unknown>;
+
+export type ClassMasterResponse = {
+  classId: string;
+  className: string;
+  baseAttack: number;
+  baseDefense: number;
+  baseHp: number;
+  baseMp: number;
+  active: boolean;
+};
+
 export async function signUpAccount(loginId: string, password: string): Promise<AccountResponse> {
   const response = await fetch('/api/v1/accounts/signup', {
     method: 'POST',
@@ -244,10 +294,19 @@ export async function loginAccount(loginId: string, password: string): Promise<A
   return body.data;
 }
 
+export async function getSessionAccount(): Promise<AccountResponse | null> {
+  const response = await fetch('/api/v1/accounts/session');
+  const body = (await response.json()) as ApiResponse<AccountResponse | null>;
+  if (!body.success) {
+    throw new Error(body.error?.message ?? 'Failed to load session account');
+  }
+  return body.data ?? null;
+}
+
 export async function createPlayer(
   accountId: number,
   nickname: string,
-  classId: 'knight' | 'mage' | 'ranger'
+  classId: string
 ): Promise<PlayerResponse> {
   const response = await fetch('/api/v1/players', {
     method: 'POST',
@@ -258,6 +317,15 @@ export async function createPlayer(
   const body = (await response.json()) as ApiResponse<PlayerResponse>;
   if (!body.success || !body.data) {
     throw new Error(body.error?.message ?? 'Failed to create player');
+  }
+  return body.data;
+}
+
+export async function getClasses(): Promise<ClassMasterResponse[]> {
+  const response = await fetch('/api/v1/classes');
+  const body = (await response.json()) as ApiResponse<ClassMasterResponse[]>;
+  if (!body.success || !body.data) {
+    throw new Error(body.error?.message ?? 'Failed to load classes');
   }
   return body.data;
 }
@@ -506,6 +574,31 @@ export async function updateDungeonProgress(
   const body = (await response.json()) as ApiResponse<DungeonProgressResponse>;
   if (!body.success || !body.data) {
     throw new Error(body.error?.message ?? 'Failed to update dungeon progress');
+  }
+  return body.data;
+}
+
+export async function getRuntimeBalanceProfile(): Promise<RuntimeBalanceProfileResponse> {
+  const response = await fetch('/api/v1/balance/runtime');
+  const body = (await response.json()) as ApiResponse<RuntimeBalanceProfileResponse | string>;
+  if (!body.success || body.data == null) {
+    throw new Error(body.error?.message ?? 'Failed to load runtime balance profile');
+  }
+  if (typeof body.data === 'string') {
+    try {
+      return JSON.parse(body.data) as RuntimeBalanceProfileResponse;
+    } catch {
+      return {};
+    }
+  }
+  return body.data;
+}
+
+export async function getWaveRuntimeConfig(dungeonId: string): Promise<WaveRuntimeConfigResponse> {
+  const response = await fetch(`/api/v1/waves/runtime/${dungeonId}`);
+  const body = (await response.json()) as ApiResponse<WaveRuntimeConfigResponse>;
+  if (!body.success || !body.data) {
+    throw new Error(body.error?.message ?? 'Failed to load wave runtime config');
   }
   return body.data;
 }

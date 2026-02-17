@@ -14,6 +14,12 @@
 ## 3) 장비 강제 설정
 - `PUT /api/v1/admin/players/{userId}/equipment`
 
+## 3-1) 클래스 마스터 관리
+- `GET /api/v1/admin/classes`
+- `POST /api/v1/admin/classes`
+- `PUT /api/v1/admin/classes/{classId}`
+- `DELETE /api/v1/admin/classes/{classId}` (비활성화)
+
 요청 예시:
 ```json
 {
@@ -28,11 +34,15 @@
 - `POST /api/v1/admin/items`
 - `PUT /api/v1/admin/items/{itemId}`
 - `DELETE /api/v1/admin/items/{itemId}` (비활성화)
+- `GET /api/v1/admin/items/{itemId}/upgrade-tiers`
+- `POST /api/v1/admin/item-upgrade-tiers`
+- `PUT /api/v1/admin/item-upgrade-tiers/{tierId}`
+- `DELETE /api/v1/admin/item-upgrade-tiers/{tierId}`
 
 주요 관리 필드:
 - `attackBonus`, `defenseBonus`, `hpBonus`, `mpBonus`
 - `upgradeGoldBase`, `upgradeAttackStep`, `upgradeDefenseStep`, `upgradeHpStep`, `upgradeMpStep`
-- `requiredClassId` (`knight`/`mage`/`ranger`, null 가능)
+- `requiredClassId` (클래스 마스터 기준 classId, null 가능)
 
 ## 5) 몬스터 마스터 관리
 - `GET /api/v1/admin/monsters`
@@ -52,13 +62,19 @@
 - `PUT /api/v1/admin/waves/{waveSettingId}`
 - `DELETE /api/v1/admin/waves/{waveSettingId}`
 
+설명:
+- `waveNo`는 패턴 웨이브 번호(1~100)입니다. (`1-1 ~ 10-10`)
+- `slotNo`는 같은 웨이브 내 몬스터 슬롯 번호입니다. (웨이브별 n종 몬스터 구성)
+- 실전 웨이브가 `11-1`이면 `1-1` 패턴(`waveNo=1`)을 재사용합니다.
+
 요청 예시:
 ```json
 {
   "dungeonId": "dungeon1",
   "waveNo": 12,
+  "slotNo": 1,
   "monsterId": "skeleton-warrior",
-  "monsterCount": 4,
+  "monsterCount": 2,
   "hpMultiplier": 1.25,
   "mpMultiplier": 1.1,
   "attackMultiplier": 1.2,
@@ -69,7 +85,29 @@
 }
 ```
 
-## 8) 동료 마스터 관리
+## 8) 웨이브 그룹(첫번째 숫자) 배수 관리
+- `GET /api/v1/admin/wave-groups/{dungeonId}`
+- `POST /api/v1/admin/wave-groups`
+- `PUT /api/v1/admin/wave-groups/{waveGroupScalingId}`
+- `DELETE /api/v1/admin/wave-groups/{waveGroupScalingId}`
+
+요청 예시:
+```json
+{
+  "dungeonId": "dungeon1",
+  "waveGroupNo": 11,
+  "hpMultiplier": 1.8,
+  "mpMultiplier": 1.2,
+  "attackMultiplier": 1.6,
+  "defenseMultiplier": 1.4,
+  "rewardGoldMultiplier": 1.5,
+  "rewardGemMultiplier": 1.3,
+  "backgroundImagePath": "/dungeons/dungeon-3.png",
+  "active": true
+}
+```
+
+## 9) 동료 마스터 관리
 - `GET /api/v1/admin/companions/masters`
 - `POST /api/v1/admin/companions/masters`
 - `PUT /api/v1/admin/companions/masters/{companionId}`
@@ -92,9 +130,25 @@
 }
 ```
 
-## 9) 유저 동료 관리
+## 10) 유저 동료 관리
 - `GET /api/v1/admin/companions/users/{userId}`
 - `PUT /api/v1/admin/companions/users/{userCompanionId}`
+
+## 밸런스 프로필
+- `GET /api/v1/admin/balance-profiles`
+- `POST /api/v1/admin/balance-profiles`
+- `PUT /api/v1/admin/balance-profiles/{profileId}`
+- `DELETE /api/v1/admin/balance-profiles/{profileId}`
+
+## 런타임 밸런스 조회
+- `GET /api/v1/balance/runtime`
+
+## 공개 클래스 조회
+- `GET /api/v1/classes`
+
+## 공개 웨이브 런타임 조회
+- `GET /api/v1/waves/runtime/{dungeonId}`
+- 응답: 100개 패턴(`1-1~10-10`) + 웨이브 그룹 배수 목록
 
 요청 예시:
 ```json

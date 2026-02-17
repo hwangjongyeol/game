@@ -5,11 +5,13 @@ import com.hwang.game.economy.model.CurrencyType;
 import com.hwang.game.economy.service.EconomyService;
 import com.hwang.game.item.dto.LootItemRequest;
 import com.hwang.game.item.entity.ItemMasterEntity;
+import com.hwang.game.item.entity.ItemUpgradeTierEntity;
 import com.hwang.game.item.entity.MonsterDropTableEntity;
 import com.hwang.game.item.entity.UserEquipmentEntity;
 import com.hwang.game.item.entity.UserEquipmentPresetEntity;
 import com.hwang.game.item.entity.UserItemEntity;
 import com.hwang.game.item.repository.ItemMasterRepository;
+import com.hwang.game.item.repository.ItemUpgradeTierRepository;
 import com.hwang.game.item.repository.MonsterDropTableRepository;
 import com.hwang.game.item.repository.UserEquipmentPresetRepository;
 import com.hwang.game.item.repository.UserEquipmentRepository;
@@ -22,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -34,6 +37,7 @@ public class ItemService {
     private final UserEquipmentRepository userEquipmentRepository;
     private final UserEquipmentPresetRepository userEquipmentPresetRepository;
     private final ItemMasterRepository itemMasterRepository;
+    private final ItemUpgradeTierRepository itemUpgradeTierRepository;
     private final MonsterDropTableRepository monsterDropTableRepository;
     private final EconomyService economyService;
     private final PlayerService playerService;
@@ -43,6 +47,7 @@ public class ItemService {
             UserEquipmentRepository userEquipmentRepository,
             UserEquipmentPresetRepository userEquipmentPresetRepository,
             ItemMasterRepository itemMasterRepository,
+            ItemUpgradeTierRepository itemUpgradeTierRepository,
             MonsterDropTableRepository monsterDropTableRepository,
             EconomyService economyService,
             PlayerService playerService
@@ -51,6 +56,7 @@ public class ItemService {
         this.userEquipmentRepository = userEquipmentRepository;
         this.userEquipmentPresetRepository = userEquipmentPresetRepository;
         this.itemMasterRepository = itemMasterRepository;
+        this.itemUpgradeTierRepository = itemUpgradeTierRepository;
         this.monsterDropTableRepository = monsterDropTableRepository;
         this.economyService = economyService;
         this.playerService = playerService;
@@ -267,14 +273,23 @@ public class ItemService {
 
         ensureEquipmentStatsInitialized(item, master);
 
-        long cost = calcUpgradeGoldCost(item.getUpgradeLevel(), master.getUpgradeGoldBase());
-        economyService.spend(userId, CurrencyType.GOLD, cost, "ITEM_UPGRADE", master.getItemId() + "-lv" + (item.getUpgradeLevel() + 1));
-        item.addEquipmentBonus(
-                master.getUpgradeAttackStep(),
-                master.getUpgradeDefenseStep(),
-                master.getUpgradeHpStep(),
-                master.getUpgradeMpStep()
-        );
+        int nextLevel = item.getUpgradeLevel() + 1;
+        Optional<ItemUpgradeTierEntity> tier = itemUpgradeTierRepository.findByItemIdAndUpgradeLevel(master.getItemId(), nextLevel);
+        long cost = tier.map(ItemUpgradeTierEntity::getUpgradeGoldCost)
+                .orElseGet(() -> calcUpgradeGoldCost(item.getUpgradeLevel(), master.getUpgradeGoldBase()));
+        economyService.spend(userId, CurrencyType.GOLD, cost, "ITEM_UPGRADE", master.getItemId() + "-lv" + nextLevel);
+
+        if (tier.isPresent()) {
+            ItemUpgradeTierEntity row = tier.get();
+            item.setEquipmentStats(master.getQuality(), row.getAttackBonus(), row.getDefenseBonus(), row.getHpBonus(), row.getMpBonus());
+        } else {
+            item.addEquipmentBonus(
+                    master.getUpgradeAttackStep(),
+                    master.getUpgradeDefenseStep(),
+                    master.getUpgradeHpStep(),
+                    master.getUpgradeMpStep()
+            );
+        }
         item.increaseUpgradeLevel();
         return userItemRepository.save(item);
     }
@@ -315,15 +330,13 @@ public class ItemService {
 
     private String normalizeClassId(String classId) {
         if (classId == null || classId.isBlank()) {
-            throw new GameException("INVALID_CLASS_ID", "Invalid classId. allowed: knight, mage, ranger");
+            throw new GameException("INVALID_CLASS_ID", "classId is required");
         }
         String normalized = classId.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "knight", "warrior", "fighter", "전사" -> "knight";
-            case "mage", "wizard", "sorcerer", "마법사" -> "mage";
-            case "ranger", "archer", "궁수" -> "ranger";
-            default -> throw new GameException("INVALID_CLASS_ID", "Invalid classId. allowed: knight, mage, ranger");
-        };
+        if (normalized.isBlank()) {
+            throw new GameException("INVALID_CLASS_ID", "classId is required");
+        }
+        return normalized;
     }
 
     private long calcUpgradeGoldCost(int currentUpgradeLevel, long upgradeGoldBase) {
@@ -339,12 +352,18 @@ public class ItemService {
         if (item.hasAnyEquipmentBonus()) {
             return false;
         }
+        Optional<ItemUpgradeTierEntity> tier = itemUpgradeTierRepository.findByItemIdAndUpgradeLevel(master.getItemId(), item.getUpgradeLevel());
+        if (tier.isPresent()) {
+            ItemUpgradeTierEntity t = tier.get();
+            item.setEquipmentStats(master.getQuality(), t.getAttackBonus(), t.getDefenseBonus(), t.getHpBonus(), t.getMpBonus());
+            return true;
+        }
         item.setEquipmentStats(
                 master.getQuality(),
-                master.getAttackBonus(),
-                master.getDefenseBonus(),
-                master.getHpBonus(),
-                master.getMpBonus()
+                Math.max(0, master.getAttackBonus() + (item.getUpgradeLevel() * master.getUpgradeAttackStep())),
+                Math.max(0, master.getDefenseBonus() + (item.getUpgradeLevel() * master.getUpgradeDefenseStep())),
+                Math.max(0, master.getHpBonus() + (item.getUpgradeLevel() * master.getUpgradeHpStep())),
+                Math.max(0, master.getMpBonus() + (item.getUpgradeLevel() * master.getUpgradeMpStep()))
         );
         return true;
     }

@@ -1,5 +1,45 @@
 # 10. 진행 현황
 
+## 2026-02-17
+
+### 완료
+- 웨이브 패턴/배수 DB 구조화 (요청 1/2/3)
+  - `wave_settings`를 `slotNo` 포함 구조로 확장하여 동일 웨이브 내 다중 몬스터(n종) 설정 지원
+  - `waveNo`를 패턴 웨이브(1~100)로 고정: `1-1 ~ 10-10` 구성
+  - 신규 테이블 `wave_group_scalings` 추가: `11-1` 이상 구간에서 웨이브 그룹(첫 번째 숫자)별 능력치/보상 배수 관리
+  - 신규 SQL: `docs/sql/21_alter_wave_settings_add_slot_and_group_scalings.sql`
+- 백엔드 API 확장
+  - Admin API 추가: `GET/POST/PUT/DELETE /api/v1/admin/wave-groups`
+  - 공개 API 추가: `GET /api/v1/waves/runtime/{dungeonId}`
+  - 런타임 응답에 100개 패턴 + 웨이브 그룹 배수 목록 제공
+- 전투 런타임 연동
+  - `frontend`가 `/api/v1/waves/runtime/dungeon1` 로드 후 `MainScene`에 주입
+  - 전투 웨이브 표기/해석을 `N-M` 형식으로 적용 (`11-1` -> `1-1` 패턴 재사용)
+  - 웨이브 내 몬스터 구성은 `slotNo + monsterCount` 기준으로 순차 스폰
+  - 몬스터 스탯/보상은 `wave_settings 배수 x wave_group_scalings 배수` 합성으로 계산
+- Admin FE 확장
+  - 웨이브 관리에 `slotNo` 필드 추가
+  - 신규 리소스 `waveGroups(웨이브 배수)` 추가(목록/생성/수정/삭제)
+  - `waveNo` 입력 검증을 `1~100`으로 제한
+- 검증
+  - `backend`: `./gradlew test` 성공
+  - `frontend`: `npm run build` 성공
+  - `admin-frontend`: `npm run build` 성공
+- 대량 시드 SQL 추가
+  - `docs/sql/22_seed_bulk_monsters_items_and_wave_groups.sql`
+  - `monster_masters` 100개(`bulk-monster-001~100`) 자동 생성
+  - `item_masters` 장비 100개(`bulk-equip-001~100`) 자동 생성
+  - `wave_group_scalings` 10개 추가(`waveGroupNo 3~12`)
+- 웨이브 패턴 100개 자동 시드 SQL 추가
+  - `docs/sql/23_seed_wave_settings_100_patterns.sql`
+  - `wave_settings`에 `waveNo 1~100 x slotNo 1~3` 총 300행 업서트
+  - `1-10, 2-10 ... 10-10`(서브웨이브 10) 구간에 보스 가중치 배수 반영
+- 웨이브 그룹 배경 이미지 DB 관리 추가
+  - `wave_group_scalings.background_image_path` 컬럼 추가
+  - Admin/Runtime API에 `backgroundImagePath` 필드 반영
+  - 전투 씬 배경을 웨이브 그룹별 이미지 경로 기준으로 동적 로드(없으면 기존 dungeon 배경 fallback)
+  - 신규 SQL: `docs/sql/24_add_wave_group_background_image_path.sql`
+
 ## 2026-02-16
 
 ### 완료
@@ -86,7 +126,7 @@
 - 샘플 UI 레퍼런스 기반 재배치 (`docs/image/ui/*`)
   - 전투 화면 오버레이 레이아웃 추가: 상단 프로필/재화 바, 좌측 퀵 메뉴, 우측 전투 정보, 하단 네비
   - 캐릭터 아바타 이미지를 UI 상단 프로필에 노출(`/characters/hero-*.svg`)
-  - 전투 영역 배경 fallback 이미지를 `game-stage`에 적용(`/dungeons/dungeon-1.svg`)
+  - 전투 영역 배경 fallback 이미지를 `game-stage`에 적용(`/dungeons/dungeon-1.png`)
   - 브론즈/골드 계열 테마로 MUI + CSS 동시 정렬
 - 샘플 UI 레퍼런스 기반 재배치 2차
   - 우측 전투 정보 패널 제거(요청 반영)
@@ -97,6 +137,104 @@
   - 게임 탭(`viewTab=game`)에서는 오버레이 패널 완전 숨김 처리
   - 인벤토리/동료/퀘스트 탭에서는 우상단 오버레이 패널이 메인 화면 위를 덮는 형태로 노출
   - 오버레이 패널 전환 시 페이드/슬라이드 애니메이션 적용
+- UI 단순화 정리
+  - 탭별 배경/패널 아트 장식 제거로 화면 복잡도 축소
+  - 상단 상태바 텍스트/재화 표기 축약(`G`, `M`) 및 크기 축소
+  - 하단 탭 버튼 7열 -> 4열 구성으로 단순화, 스킬바 슬롯 6칸 -> 3칸으로 축소
+  - 오버레이 패널 그림자/색상 강도 완화
+- UI 단순화 2차 (하단 좌측 미니 메뉴)
+  - 하단 큰 네비게이션 바 제거, 좌하단 고정형 미니 정사각 버튼 메뉴(7개 탭)로 전환
+  - 기존 하단 스킬 3칸 UI 삭제
+  - 메뉴 구성 고정: `게임`, `인벤토리`, `장비`, `퀘스트`, `동료뽑기`, `동료`, `동료합성`
+- Admin 아이템 수정 반영 버그 수정
+  - 원인: `item_masters` 수정 시 실제 플레이 데이터(`user_items`)가 동기화되지 않아 수정이 체감되지 않음
+  - 조치: Admin 아이템 수정 시 `user_items`의 `item_name`과 장비 스탯/등급을 함께 동기화하도록 보정
+  - 강화 레벨(`upgrade_level`)은 유지한 채 변경된 마스터 스탯/증가량 기준으로 재계산 반영
+- 전투 화면 능력치 박스 추가
+  - 오버레이 패널 숨김 상태(게임 탭)에서도 전투 화면 우측에서 능력치 업그레이드 가능하도록 별도 박스 추가
+  - 배수 선택(`x1/x10/x100`) + ATK/DEF/HP/MP 즉시 강화 버튼 + 합산 스탯 표시 제공
+- 전투 하단 메뉴 탭 체계 통일
+  - `게임` 옆에 `능력치` 탭 버튼 추가(동일한 미니 박스 버튼 스타일)
+  - `게임` 탭: 전투만 노출 / `능력치` 탭: 전투 + 능력치 박스 노출로 분리
+  - `능력치` 탭 선택 시에도 전투 씬은 유지되도록 숨김 조건 보정
+- 전투 배경/타격 이펙트 단순화
+  - 게임 스테이지 배경의 어두운 그라데이션 오버레이 제거(배경 가림 현상 완화)
+  - 타격 시 반짝임/번쩍임(카메라 flash, shake, 스킬 도형 이펙트) 비활성화
+  - Phaser HUD 캔버스 오버레이(우하단 반투명 사각 배경 + 라벨 배경 사각형) 제거
+- 상단 HUD/웨이브 설정 재배치
+  - 상단 캐릭터/재화 정보를 좌측 정렬로 이동
+  - 상단 좌측 인접 영역에 `Wave 설정` 추가
+  - `마지막 Wave 진행` 선택 시 웨이브 고정 해제(클리어 시 다음 Wave 진행)
+  - 특정 `Wave N 반복` 선택 시 해당 Wave로 이동 후 고정 반복
+  - 전투 속도 버튼을 우측 작은 원형 1개로 변경(클릭 순환: `1X -> 2X -> 3X -> 1X`)
+  - 속도 버튼 위치를 화면 하단 오른쪽 고정으로 이동
+- 던전 배경 로더 경로 보정
+  - `BootScene`에서 `dungeon-bg-1..10` 로딩 확장자를 실제 파일 구성에 맞게 조정
+  - 현재 리소스 기준: `1~3`은 `png`, `4~10`은 `svg`로 로드
+- 프론트 수치 리팩토링 1차 (DB 이관 준비)
+  - 장비 수치/세트 효과/강화 비용/아이템 패시브 수치를 `game/balance/equipmentBalance.ts`로 분리
+  - 몬스터 카탈로그 수치를 `game/balance/monsterCatalog.ts`로 분리하고 `entities/monsters.ts`는 카탈로그 참조만 담당
+  - 던전 웨이브/스탯 스케일링 수치를 `game/balance/dungeonBalance.ts`로 분리
+  - `App.tsx`, `MainScene.ts`에서 하드코딩 수치 직접 참조 제거 후 balance 모듈 참조로 전환
+- 프론트 수치 리팩토링 2차 (요청 1/2/3 반영)
+  - 1) 클래스/스킬 수치 분리
+    - 클래스 정의를 `entities/classes.ts`에서 `game/balance/classBalance.ts`로 이동
+    - 클래스 기본 수치/액티브 스킬/스킬트리 수치의 단일 소스화 완료
+  - 2) 전투/성장 공식 수치 분리
+    - 전투 계산/치명타/방어감쇠/레벨업 성장치/필요 EXP 공식을 `game/balance/combatBalance.ts`로 분리
+    - `combat/formulas.ts`, `MainScene.ts`에서 직접 숫자 하드코딩 제거 후 밸런스 상수 참조로 변경
+  - 3) DB 매핑 어댑터 레이어 추가
+    - `game/balance/dbBalanceAdapter.ts` 추가
+    - 런타임 밸런스 오버라이드 입력원 지원:
+      - `VITE_BALANCE_PROFILE_JSON` (환경변수)
+      - `localStorage['autogame.balance.profile']` (개발/운영 실험용)
+    - 클래스/던전/몬스터/전투 밸런스 모듈이 어댑터 프로필을 통해 기본값을 덮어쓸 수 있도록 연결
+- 어드민 FE 1/2/3 대응
+  - `balanceProfiles` 리소스 추가(메뉴: `밸런스(1/2/3)`)
+  - 클래스/전투/던전/몬스터 오버라이드용 JSON 프로필 템플릿을 어드민에서 생성/수정/삭제 가능
+  - 프로필 JSON 유효성 검증(파싱 실패 시 저장 차단) 및 JSON 복사 버튼 제공
+  - 저장소는 로컬(`localStorage: admin.balance.profiles`) 기반으로 먼저 적용, 추후 backend balance API로 전환 예정
+- 밸런스 DB/API 전환 + 장비 강화 티어 DB화
+  - backend 신규 테이블 추가
+    - `admin_balance_profiles` (런타임 밸런스 JSON 저장)
+    - `item_upgrade_tiers` (장비 강화 레벨별 골드비용/최종 스탯)
+  - backend API 추가
+    - `GET /api/v1/balance/runtime`
+    - `GET/POST/PUT/DELETE /api/v1/admin/balance-profiles`
+    - `GET /api/v1/admin/items/{itemId}/upgrade-tiers`
+    - `POST/PUT/DELETE /api/v1/admin/item-upgrade-tiers`
+  - `ItemService` 강화 로직을 `item_upgrade_tiers` 우선 적용으로 변경
+    - 티어 데이터가 있으면 강화비용/강화결과 스탯을 DB 티어값으로 적용
+    - 티어가 없으면 기존 `item_masters` step 공식 fallback 유지
+  - 어드민 아이템/티어 변경 시 `user_items` 동기화 로직에 티어 반영
+  - admin-frontend
+    - `balanceProfiles` 리소스를 localStorage 임시 저장에서 backend API 연동으로 전환
+    - `itemUpgradeTiers` 리소스 신규 추가(목록/생성/수정/삭제)
+  - frontend runtime
+    - `/api/v1/balance/runtime` 로드 후 `dbBalanceAdapter`에 주입하여 클래스/전투/던전/몬스터 밸런스 반영
+    - 클래스/전투/던전/몬스터 밸런스 해석을 런타임 profile 기준으로 동적 조회하도록 보정
+- 클래스 ID 동적화 (DB 클래스 마스터 기반)
+  - 신규 테이블: `character_class_masters` (classId/className + 기본 스탯 + active)
+  - backend
+    - 공개 API 추가: `GET /api/v1/classes`
+    - admin API 추가: `GET/POST/PUT/DELETE /api/v1/admin/classes`
+    - `PlayerService` 클래스 검증을 하드코딩 switch에서 DB 활성 클래스 검증으로 전환
+    - `CharacterService` 신규 캐릭터 기본 스탯 초기화를 클래스 마스터 기반으로 전환
+    - `AdminService`/`ItemService`의 클래스 처리 로직을 동적 classId 기반으로 전환
+  - admin-frontend
+    - `classMasters` 리소스 추가(목록/생성/수정)
+    - 플레이어/아이템/동료 화면의 class 선택 입력을 하드코딩 리스트에서 DB 클래스 목록 조회 기반으로 전환
+  - frontend
+    - 캐릭터 생성 클래스 목록을 `GET /api/v1/classes`로 동적 로드
+    - `CharacterClassId`를 문자열 기반으로 확장하여 DB 클래스 ID 수용
+  - 검증
+    - `backend`: `./gradlew test` 성공
+    - `frontend`: `npm run build` 성공
+    - `admin-frontend`: `npm run build` 성공
+- Admin 아이템 수정 회귀 테스트 추가
+  - `AdminServiceItemSyncTest` 신규 추가
+  - 케이스1: 마스터 변경 시 `user_items` 이름/스탯 동기화 및 강화 누적분 유지 검증
+  - 케이스2: 장비 -> 비장비 타입 변경 시 `user_items` 장비 스탯 초기화 검증
 
 ## 2026-02-14
 
@@ -205,3 +343,9 @@
 - 웨이브 선택 히스토리/즐겨찾기(UI 저장 + 최근 선택 빠른 적용)
 - 클래스별 액티브 이펙트 강화(스킬 전용 연출/사운드/스크린셰이크)
 - 던전 전투 HUD 경량화(청크 크기/렌더링 최적화) 및 클래스별 스킬 연출 세분화
+- 미니 메뉴 버튼 텍스트를 아이콘+짧은 라벨 형태로 경량화하고 모바일 터치 영역 보강
+- 밸런스 DB API 연동 1차
+  - `dbBalanceAdapter` 입력원을 환경변수/로컬스토리지에서 `backend balance API` 응답 우선으로 전환
+  - 밸런스 테이블(클래스/전투/던전/몬스터) DTO 스키마 고정 및 버전 관리
+- 클래스 ID의 완전 동적화
+  - 현재 `knight/mage/ranger` 고정 타입을 DB 기반 클래스 추가 구조로 확장

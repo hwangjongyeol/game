@@ -10,4 +10,6 @@ public interface UserItemRepository extends JpaRepository<UserItemEntity, Long> 
     List<UserItemEntity> findByUserIdOrderByItemNameAsc(Long userId);
 
     Optional<UserItemEntity> findByUserIdAndItemId(Long userId, String itemId);
+
+    List<UserItemEntity> findByItemId(String itemId);
 }

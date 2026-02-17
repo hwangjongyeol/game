@@ -27,7 +27,7 @@ public record UserCompanionResponse(
                 user.getCompanionId(),
                 master != null ? master.getCompanionName() : user.getCompanionId(),
                 master != null ? master.getGrade() : "COMMON",
-                master != null ? master.getClassId() : "knight",
+                master != null ? master.getClassId() : "unknown",
                 user.getLevel(),
                 user.getCopies(),
                 user.getSlotNo(),

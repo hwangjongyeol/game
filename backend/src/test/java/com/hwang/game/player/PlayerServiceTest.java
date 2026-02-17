@@ -6,6 +6,7 @@ import com.hwang.game.common.exception.GameException;
 import com.hwang.game.economy.entity.WalletEntity;
 import com.hwang.game.economy.repository.WalletRepository;
 import com.hwang.game.player.entity.UserEntity;
+import com.hwang.game.player.repository.CharacterClassMasterRepository;
 import com.hwang.game.player.repository.PlayerRepository;
 import com.hwang.game.player.service.PlayerService;
 import org.junit.jupiter.api.Test;
@@ -37,29 +38,21 @@ class PlayerServiceTest {
     @Mock
     private UserCharacterStatRepository userCharacterStatRepository;
 
+    @Mock
+    private CharacterClassMasterRepository characterClassMasterRepository;
+
     @InjectMocks
     private PlayerService playerService;
 
     @Test
-    void createPlayer_mapsWizardToMage() {
+    void createPlayer_acceptsDbClassId() {
         when(accountRepository.existsById(10L)).thenReturn(true);
         when(playerRepository.countByAccountIdAndDeletedFalse(10L)).thenReturn(0L);
+        when(characterClassMasterRepository.existsByClassIdAndActiveTrue("mage")).thenReturn(true);
         when(playerRepository.save(any(UserEntity.class))).thenAnswer(invocation -> withId(invocation.getArgument(0), 1L));
         when(walletRepository.save(any(WalletEntity.class))).thenReturn(new WalletEntity(1L));
 
-        var created = playerService.createPlayer(10L, "mage-user", "wizard");
-
-        assertThat(created.classId()).isEqualTo("mage");
-    }
-
-    @Test
-    void createPlayer_mapsKoreanMageToMage() {
-        when(accountRepository.existsById(10L)).thenReturn(true);
-        when(playerRepository.countByAccountIdAndDeletedFalse(10L)).thenReturn(0L);
-        when(playerRepository.save(any(UserEntity.class))).thenAnswer(invocation -> withId(invocation.getArgument(0), 1L));
-        when(walletRepository.save(any(WalletEntity.class))).thenReturn(new WalletEntity(1L));
-
-        var created = playerService.createPlayer(10L, "mage-user-kr", "마법사");
+        var created = playerService.createPlayer(10L, "mage-user", "mage");
 
         assertThat(created.classId()).isEqualTo("mage");
     }
@@ -68,16 +61,18 @@ class PlayerServiceTest {
     void createPlayer_rejectsUnknownClassId() {
         when(accountRepository.existsById(10L)).thenReturn(true);
         when(playerRepository.countByAccountIdAndDeletedFalse(10L)).thenReturn(0L);
+        when(characterClassMasterRepository.existsByClassIdAndActiveTrue("summoner")).thenReturn(false);
 
         assertThatThrownBy(() -> playerService.createPlayer(10L, "invalid-user", "summoner"))
                 .isInstanceOf(GameException.class)
-                .hasMessageContaining("Invalid classId");
+                .hasMessageContaining("Unknown classId");
     }
 
     @Test
     void createPlayer_normalizesUppercaseAndWhitespace() {
         when(accountRepository.existsById(10L)).thenReturn(true);
         when(playerRepository.countByAccountIdAndDeletedFalse(10L)).thenReturn(0L);
+        when(characterClassMasterRepository.existsByClassIdAndActiveTrue("mage")).thenReturn(true);
         when(playerRepository.save(any(UserEntity.class))).thenAnswer(invocation -> withId(invocation.getArgument(0), 1L));
         when(walletRepository.save(any(WalletEntity.class))).thenReturn(new WalletEntity(1L));
 

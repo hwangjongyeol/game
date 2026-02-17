@@ -1,9 +1,15 @@
 package com.hwang.game.admin.controller;
 
 import com.hwang.game.admin.dto.AdminCharacterStatResponse;
+import com.hwang.game.admin.dto.AdminBalanceProfileRequest;
+import com.hwang.game.admin.dto.AdminBalanceProfileResponse;
+import com.hwang.game.admin.dto.AdminClassMasterRequest;
+import com.hwang.game.admin.dto.AdminClassMasterResponse;
 import com.hwang.game.admin.dto.AdminCompanionMasterRequest;
 import com.hwang.game.admin.dto.AdminCompanionMasterResponse;
 import com.hwang.game.admin.dto.AdminItemMasterRequest;
+import com.hwang.game.admin.dto.AdminItemUpgradeTierRequest;
+import com.hwang.game.admin.dto.AdminItemUpgradeTierResponse;
 import com.hwang.game.admin.dto.AdminMonsterDropRequest;
 import com.hwang.game.admin.dto.AdminMonsterDropResponse;
 import com.hwang.game.admin.dto.AdminMonsterRequest;
@@ -13,6 +19,8 @@ import com.hwang.game.admin.dto.AdminUpdateCharacterStatRequest;
 import com.hwang.game.admin.dto.AdminUpdateEquipmentRequest;
 import com.hwang.game.admin.dto.AdminUpdatePlayerRequest;
 import com.hwang.game.admin.dto.AdminUpdateUserCompanionRequest;
+import com.hwang.game.admin.dto.AdminWaveGroupScalingRequest;
+import com.hwang.game.admin.dto.AdminWaveGroupScalingResponse;
 import com.hwang.game.admin.dto.AdminWaveSettingRequest;
 import com.hwang.game.admin.dto.AdminWaveSettingResponse;
 import com.hwang.game.admin.service.AdminService;
@@ -44,6 +52,30 @@ public class AdminController {
     @GetMapping("/players")
     public ApiResponse<List<AdminPlayerResponse>> getPlayers() {
         return ApiResponse.ok(adminService.getPlayers());
+    }
+
+    @GetMapping("/classes")
+    public ApiResponse<List<AdminClassMasterResponse>> getClasses() {
+        return ApiResponse.ok(adminService.getClassMasters());
+    }
+
+    @PostMapping("/classes")
+    public ApiResponse<AdminClassMasterResponse> createClass(@RequestBody AdminClassMasterRequest request) {
+        return ApiResponse.ok(adminService.createClassMaster(request));
+    }
+
+    @PutMapping("/classes/{classId}")
+    public ApiResponse<AdminClassMasterResponse> updateClass(
+            @PathVariable String classId,
+            @RequestBody AdminClassMasterRequest request
+    ) {
+        return ApiResponse.ok(adminService.updateClassMaster(classId, request));
+    }
+
+    @DeleteMapping("/classes/{classId}")
+    public ApiResponse<Void> deleteClass(@PathVariable String classId) {
+        adminService.deleteClassMaster(classId);
+        return ApiResponse.ok(null);
     }
 
     @PutMapping("/players/{userId}")
@@ -84,6 +116,11 @@ public class AdminController {
         return ApiResponse.ok(adminService.getItemMasters());
     }
 
+    @GetMapping("/items/{itemId}/upgrade-tiers")
+    public ApiResponse<List<AdminItemUpgradeTierResponse>> getItemUpgradeTiers(@PathVariable String itemId) {
+        return ApiResponse.ok(adminService.getItemUpgradeTiers(itemId));
+    }
+
     @PostMapping("/items")
     public ApiResponse<ItemMasterResponse> createItem(@RequestBody AdminItemMasterRequest request) {
         return ApiResponse.ok(adminService.createItemMaster(request));
@@ -97,6 +134,25 @@ public class AdminController {
     @DeleteMapping("/items/{itemId}")
     public ApiResponse<Void> deleteItem(@PathVariable String itemId) {
         adminService.deleteItemMaster(itemId);
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/item-upgrade-tiers")
+    public ApiResponse<AdminItemUpgradeTierResponse> createItemUpgradeTier(@RequestBody AdminItemUpgradeTierRequest request) {
+        return ApiResponse.ok(adminService.createItemUpgradeTier(request));
+    }
+
+    @PutMapping("/item-upgrade-tiers/{tierId}")
+    public ApiResponse<AdminItemUpgradeTierResponse> updateItemUpgradeTier(
+            @PathVariable long tierId,
+            @RequestBody AdminItemUpgradeTierRequest request
+    ) {
+        return ApiResponse.ok(adminService.updateItemUpgradeTier(tierId, request));
+    }
+
+    @DeleteMapping("/item-upgrade-tiers/{tierId}")
+    public ApiResponse<Void> deleteItemUpgradeTier(@PathVariable long tierId) {
+        adminService.deleteItemUpgradeTier(tierId);
         return ApiResponse.ok(null);
     }
 
@@ -169,9 +225,57 @@ public class AdminController {
         return ApiResponse.ok(null);
     }
 
+    @GetMapping("/wave-groups/{dungeonId}")
+    public ApiResponse<List<AdminWaveGroupScalingResponse>> getWaveGroupScalings(@PathVariable String dungeonId) {
+        return ApiResponse.ok(adminService.getWaveGroupScalings(dungeonId).stream().map(AdminWaveGroupScalingResponse::from).toList());
+    }
+
+    @PostMapping("/wave-groups")
+    public ApiResponse<AdminWaveGroupScalingResponse> createWaveGroupScaling(@RequestBody AdminWaveGroupScalingRequest request) {
+        return ApiResponse.ok(AdminWaveGroupScalingResponse.from(adminService.createWaveGroupScaling(request)));
+    }
+
+    @PutMapping("/wave-groups/{waveGroupScalingId}")
+    public ApiResponse<AdminWaveGroupScalingResponse> updateWaveGroupScaling(
+            @PathVariable long waveGroupScalingId,
+            @RequestBody AdminWaveGroupScalingRequest request
+    ) {
+        return ApiResponse.ok(AdminWaveGroupScalingResponse.from(adminService.updateWaveGroupScaling(waveGroupScalingId, request)));
+    }
+
+    @DeleteMapping("/wave-groups/{waveGroupScalingId}")
+    public ApiResponse<Void> deleteWaveGroupScaling(@PathVariable long waveGroupScalingId) {
+        adminService.deleteWaveGroupScaling(waveGroupScalingId);
+        return ApiResponse.ok(null);
+    }
+
     @GetMapping("/companions/masters")
     public ApiResponse<List<AdminCompanionMasterResponse>> getCompanionMasters() {
         return ApiResponse.ok(adminService.getCompanionMasters());
+    }
+
+    @GetMapping("/balance-profiles")
+    public ApiResponse<List<AdminBalanceProfileResponse>> getBalanceProfiles() {
+        return ApiResponse.ok(adminService.getBalanceProfiles());
+    }
+
+    @PostMapping("/balance-profiles")
+    public ApiResponse<AdminBalanceProfileResponse> createBalanceProfile(@RequestBody AdminBalanceProfileRequest request) {
+        return ApiResponse.ok(adminService.createBalanceProfile(request));
+    }
+
+    @PutMapping("/balance-profiles/{profileId}")
+    public ApiResponse<AdminBalanceProfileResponse> updateBalanceProfile(
+            @PathVariable String profileId,
+            @RequestBody AdminBalanceProfileRequest request
+    ) {
+        return ApiResponse.ok(adminService.updateBalanceProfile(profileId, request));
+    }
+
+    @DeleteMapping("/balance-profiles/{profileId}")
+    public ApiResponse<Void> deleteBalanceProfile(@PathVariable String profileId) {
+        adminService.deleteBalanceProfile(profileId);
+        return ApiResponse.ok(null);
     }
 
     @PostMapping("/companions/masters")
