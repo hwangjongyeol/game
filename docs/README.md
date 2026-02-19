@@ -43,6 +43,7 @@ python3 docs/assets/build-docs-data.py
   - 문서 갱신 후에는 `docs/assets/docs-data.js`를 다시 생성해야 최신 내용이 반영됩니다.
 - 지원 기능:
   - 좌측 검색창에서 파일명/본문 통합 검색 + 파일명/본문 스니펫 카드 표시 + 검색어 하이라이트
+  - 상단 `메뉴 숨기기/메뉴 보이기` 토글로 사이드바 열기/닫기(설정 로컬 저장)
   - 마크다운 코드블록 구문 하이라이트 (`json`, `yaml`, `sql`, `bash`, `js/ts`)
   - `api/README.md -> openapi.yaml` 같은 상대 링크를 뷰어 내부에서 바로 열기
 

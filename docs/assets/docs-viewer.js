@@ -1,10 +1,12 @@
 (function () {
+  const appEl = document.querySelector('.app');
   const sidebar = document.getElementById('sidebar');
   const treeEl = document.getElementById('tree');
   const contentEl = document.getElementById('docContent');
   const breadcrumbEl = document.getElementById('breadcrumb');
   const openBtn = document.getElementById('openSidebar');
   const closeBtn = document.getElementById('closeSidebar');
+  const toggleSidebarBtn = document.getElementById('toggleSidebar');
   const searchInput = document.getElementById('docSearch');
   const searchMetaEl = document.getElementById('searchMeta');
   const searchResultsEl = document.getElementById('searchResults');
@@ -19,6 +21,7 @@
   }
 
   const docsByPath = new Map(docs.map((doc) => [doc.path, doc]));
+  const sidebarPrefKey = 'docsViewer.sidebarEnabled';
   let currentPath = '';
   let currentSearchQuery = '';
 
@@ -508,13 +511,22 @@
     }
   }
 
+  function setSidebarEnabled(enabled) {
+    appEl.classList.toggle('sidebar-off', !enabled);
+    toggleSidebarBtn.textContent = enabled ? '메뉴 숨기기' : '메뉴 보이기';
+    toggleSidebarBtn.setAttribute('aria-pressed', enabled ? 'false' : 'true');
+    localStorage.setItem(sidebarPrefKey, enabled ? '1' : '0');
+  }
+
   const firstPath = docs[0].path;
   const hashPath = location.hash ? decodeURIComponent(location.hash.replace(/^#/, '')) : '';
   const hashDocPath = hashPath.split('#')[0];
+  const savedSidebarPref = localStorage.getItem(sidebarPrefKey);
 
   renderTree();
   searchMetaEl.textContent = `${docs.length}개 문서`;
   openDoc(docsByPath.has(hashDocPath) ? hashPath : firstPath);
+  setSidebarEnabled(savedSidebarPref !== '0');
 
   searchInput.addEventListener('input', (event) => {
     runSearch(event.target.value);
@@ -529,4 +541,8 @@
   });
   openBtn.addEventListener('click', () => sidebar.classList.add('open'));
   closeBtn.addEventListener('click', () => sidebar.classList.remove('open'));
+  toggleSidebarBtn.addEventListener('click', () => {
+    const enabled = !appEl.classList.contains('sidebar-off');
+    setSidebarEnabled(!enabled);
+  });
 })();
