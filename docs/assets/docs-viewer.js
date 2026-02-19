@@ -6,8 +6,8 @@
   const openBtn = document.getElementById('openSidebar');
   const closeBtn = document.getElementById('closeSidebar');
   const searchInput = document.getElementById('docSearch');
-  const clearSearchBtn = document.getElementById('clearSearch');
   const searchMetaEl = document.getElementById('searchMeta');
+  const searchResultsEl = document.getElementById('searchResults');
 
   const rawData = window.DOCS_DATA || [];
   const docs = Array.isArray(rawData) ? rawData.slice() : (rawData.docs || []).slice();
@@ -374,37 +374,37 @@
     }, []);
   }
 
-  function renderTree(query) {
+  function renderTree() {
     treeEl.innerHTML = '';
+    const tree = buildTree(docs.map((d) => d.path));
+    treeEl.appendChild(makeTree(tree));
+  }
+
+  function renderSearchResults(query) {
+    searchResultsEl.innerHTML = '';
     const cards = getSearchCards(query);
-    searchMetaEl.textContent = query ? `${cards.length}개 문서 일치` : `${docs.length}개 문서`;
+    searchMetaEl.textContent = `${cards.length}개 문서 일치`;
+    const q = normalizeText(query);
 
-    if (query) {
-      const q = normalizeText(query);
-      if (!cards.length) {
-        const empty = document.createElement('div');
-        empty.className = 'search-empty';
-        empty.textContent = '검색 결과가 없습니다.';
-        treeEl.appendChild(empty);
-        return;
-      }
-
-      for (const card of cards) {
-        const btn = document.createElement('button');
-        btn.className = 'file search-card';
-        btn.dataset.path = card.doc.path;
-        btn.innerHTML = `
-          <span class="search-card-title">${highlightText(card.doc.path, q)}</span>
-          ${card.snippet ? `<span class="search-card-snippet">${highlightText(card.snippet, q)}</span>` : '<span class="search-card-snippet search-card-snippet-empty">본문 일치 없음 (파일명 일치)</span>'}
-        `;
-        btn.addEventListener('click', () => openDoc(card.doc.path));
-        treeEl.appendChild(btn);
-      }
+    if (!cards.length) {
+      const empty = document.createElement('div');
+      empty.className = 'search-empty';
+      empty.textContent = '검색 결과가 없습니다.';
+      searchResultsEl.appendChild(empty);
       return;
     }
 
-    const tree = buildTree(docs.map((d) => d.path));
-    treeEl.appendChild(makeTree(tree));
+    for (const card of cards) {
+      const btn = document.createElement('button');
+      btn.className = 'search-item';
+      btn.dataset.path = card.doc.path;
+      btn.innerHTML = `
+        <span class="search-item-path">${highlightText(card.doc.path, q)}</span>
+        ${card.snippet ? `<span class="search-item-snippet">${highlightText(card.snippet, q)}</span>` : '<span class="search-item-snippet search-item-snippet-empty">본문 일치 없음 (파일명 일치)</span>'}
+      `;
+      btn.addEventListener('click', () => openDoc(card.doc.path));
+      searchResultsEl.appendChild(btn);
+    }
   }
 
   function makeTree(node) {
@@ -440,6 +440,9 @@
 
   function setActive(path) {
     treeEl.querySelectorAll('button.file').forEach((el) => {
+      el.classList.toggle('active', el.dataset.path === path);
+    });
+    searchResultsEl.querySelectorAll('button.search-item').forEach((el) => {
       el.classList.toggle('active', el.dataset.path === path);
     });
   }
@@ -483,12 +486,23 @@
 
   function runSearch(query) {
     currentSearchQuery = query || '';
-    renderTree(currentSearchQuery);
-    if (!currentSearchQuery) {
+    const normalizedQuery = normalizeText(currentSearchQuery);
+    const hasQuery = !!normalizedQuery;
+    treeEl.classList.toggle('hidden', hasQuery);
+    searchResultsEl.classList.toggle('hidden', !hasQuery);
+
+    if (hasQuery) {
+      renderSearchResults(normalizedQuery);
+    } else {
+      searchMetaEl.textContent = `${docs.length}개 문서`;
+      searchResultsEl.innerHTML = '';
+    }
+
+    if (!hasQuery) {
       setActive(currentPath);
       return;
     }
-    const results = getSearchResults(currentSearchQuery);
+    const results = getSearchResults(normalizedQuery);
     if (results.length === 1) {
       setActive(results[0].path);
     }
@@ -498,29 +512,21 @@
   const hashPath = location.hash ? decodeURIComponent(location.hash.replace(/^#/, '')) : '';
   const hashDocPath = hashPath.split('#')[0];
 
-  renderTree('');
+  renderTree();
+  searchMetaEl.textContent = `${docs.length}개 문서`;
   openDoc(docsByPath.has(hashDocPath) ? hashPath : firstPath);
-  clearSearchBtn.hidden = true;
 
   searchInput.addEventListener('input', (event) => {
-    const next = event.target.value;
-    clearSearchBtn.hidden = !next;
-    runSearch(next);
+    runSearch(event.target.value);
   });
   searchInput.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') return;
+    if (!normalizeText(searchInput.value)) return;
     const results = getSearchResults(searchInput.value);
     if (results.length > 0) {
       openDoc(results[0].path);
     }
   });
-  clearSearchBtn.addEventListener('click', () => {
-    searchInput.value = '';
-    clearSearchBtn.hidden = true;
-    runSearch('');
-    searchInput.focus();
-  });
-
   openBtn.addEventListener('click', () => sidebar.classList.add('open'));
   closeBtn.addEventListener('click', () => sidebar.classList.remove('open'));
 })();
