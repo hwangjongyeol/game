@@ -325,19 +325,79 @@
     });
   }
 
+  function stripMarkdownForSnippet(text) {
+    return (text || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/`[^`]*`/g, ' ')
+      .replace(/!\[[^\]]*\]\(([^)]+)\)/g, ' ')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+      .replace(/[#>*_|~-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function buildContentSnippet(content, query) {
+    const q = normalizeText(query);
+    if (!q) return '';
+
+    const plain = stripMarkdownForSnippet(content);
+    if (!plain) return '';
+
+    const lower = plain.toLowerCase();
+    const idx = lower.indexOf(q);
+    if (idx < 0) return '';
+
+    const start = Math.max(0, idx - 54);
+    const end = Math.min(plain.length, idx + q.length + 110);
+    const prefix = start > 0 ? '... ' : '';
+    const suffix = end < plain.length ? ' ...' : '';
+    return `${prefix}${plain.slice(start, end).trim()}${suffix}`;
+  }
+
+  function getSearchCards(query) {
+    const q = normalizeText(query);
+    if (!q) return [];
+
+    return docs.reduce((acc, doc) => {
+      const pathMatch = doc.path.toLowerCase().includes(q);
+      const contentMatch = (doc.content || '').toLowerCase().includes(q);
+      if (!pathMatch && !contentMatch) return acc;
+
+      acc.push({
+        doc,
+        pathMatch,
+        contentMatch,
+        snippet: contentMatch ? buildContentSnippet(doc.content, q) : '',
+      });
+      return acc;
+    }, []);
+  }
+
   function renderTree(query) {
     treeEl.innerHTML = '';
-    const results = getSearchResults(query);
-    searchMetaEl.textContent = query ? `${results.length}개 문서 일치` : `${docs.length}개 문서`;
+    const cards = getSearchCards(query);
+    searchMetaEl.textContent = query ? `${cards.length}개 문서 일치` : `${docs.length}개 문서`;
 
     if (query) {
       const q = normalizeText(query);
-      for (const doc of results) {
+      if (!cards.length) {
+        const empty = document.createElement('div');
+        empty.className = 'search-empty';
+        empty.textContent = '검색 결과가 없습니다.';
+        treeEl.appendChild(empty);
+        return;
+      }
+
+      for (const card of cards) {
         const btn = document.createElement('button');
-        btn.className = 'file';
-        btn.dataset.path = doc.path;
-        btn.innerHTML = highlightText(doc.path, q);
-        btn.addEventListener('click', () => openDoc(doc.path));
+        btn.className = 'file search-card';
+        btn.dataset.path = card.doc.path;
+        btn.innerHTML = `
+          <span class="search-card-title">${highlightText(card.doc.path, q)}</span>
+          ${card.snippet ? `<span class="search-card-snippet">${highlightText(card.snippet, q)}</span>` : '<span class="search-card-snippet search-card-snippet-empty">본문 일치 없음 (파일명 일치)</span>'}
+        `;
+        btn.addEventListener('click', () => openDoc(card.doc.path));
         treeEl.appendChild(btn);
       }
       return;
@@ -440,9 +500,12 @@
 
   renderTree('');
   openDoc(docsByPath.has(hashDocPath) ? hashPath : firstPath);
+  clearSearchBtn.hidden = true;
 
   searchInput.addEventListener('input', (event) => {
-    runSearch(event.target.value);
+    const next = event.target.value;
+    clearSearchBtn.hidden = !next;
+    runSearch(next);
   });
   searchInput.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') return;
@@ -453,6 +516,7 @@
   });
   clearSearchBtn.addEventListener('click', () => {
     searchInput.value = '';
+    clearSearchBtn.hidden = true;
     runSearch('');
     searchInput.focus();
   });

@@ -1,5 +1,5 @@
 # AutoGame Documentation
-### decs/00-work-rules.md 보고 업무진행해죠. 항상 db, 문서, 진행사항, 진행할 항목 업데이트 필요)
+### decs/README.md 보고 업무진행해죠. 항상 db, 문서, 진행사항, 진행할 항목 업데이트 필요)
 이 폴더는 자동게임 프로젝트의 설계 기준 문서 모음입니다.
 
 ## 필요한 문서는 docs/ 하위에 만들고 계속 업데이트 해죠
@@ -42,7 +42,7 @@ python3 docs/assets/build-docs-data.py
   - `docs/index.html`을 브라우저에서 열면 됩니다.
   - 문서 갱신 후에는 `docs/assets/docs-data.js`를 다시 생성해야 최신 내용이 반영됩니다.
 - 지원 기능:
-  - 좌측 검색창에서 파일명/본문 통합 검색
+  - 좌측 검색창에서 파일명/본문 통합 검색 + 파일명/본문 스니펫 카드 표시 + 검색어 하이라이트
   - 마크다운 코드블록 구문 하이라이트 (`json`, `yaml`, `sql`, `bash`, `js/ts`)
   - `api/README.md -> openapi.yaml` 같은 상대 링크를 뷰어 내부에서 바로 열기
 
