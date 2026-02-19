@@ -32,6 +32,20 @@ mysql -u sysbatch -p sys_batch < docs/sql/00_latest_schema.sql
 ```
 - 과거 `docs/sql/01~18` 파일은 마이그레이션 이력 보관용입니다.
 
+## 문서 뷰어 (docs/index.html)
+- 목적: `docs/*.md`, `docs/**/*.yaml` 문서를 브라우저에서 트리/본문 형태로 탐색
+- 데이터 파일 생성:
+```bash
+python3 docs/assets/build-docs-data.py
+```
+- 로컬 확인:
+  - `docs/index.html`을 브라우저에서 열면 됩니다.
+  - 문서 갱신 후에는 `docs/assets/docs-data.js`를 다시 생성해야 최신 내용이 반영됩니다.
+- 지원 기능:
+  - 좌측 검색창에서 파일명/본문 통합 검색
+  - 마크다운 코드블록 구문 하이라이트 (`json`, `yaml`, `sql`, `bash`, `js/ts`)
+  - `api/README.md -> openapi.yaml` 같은 상대 링크를 뷰어 내부에서 바로 열기
+
 ## 작성 원칙
 - 구현 가능한 수준으로 작성
 - Spring Boot + React + Phaser 기준

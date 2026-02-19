@@ -174,31 +174,8 @@ public class ItemService {
             return userEquipmentRepository.save(equipment);
         }
 
-        ItemMasterEntity master = getItemMasterOrThrow(itemId);
-        if (!"EQUIPMENT".equalsIgnoreCase(master.getItemType())) {
-            throw new GameException("ITEM_NOT_EQUIPPABLE", "Item is not equippable: " + master.getItemId());
-        }
-        if (master.getEquipSlot() == null || !master.getEquipSlot().equalsIgnoreCase(normalizedSlot)) {
-            throw new GameException("EQUIP_SLOT_MISMATCH", "Item does not match slot");
-        }
-        if (master.getRequiredClassId() != null && !master.getRequiredClassId().isBlank()) {
-            String requiredClass = normalizeClassId(master.getRequiredClassId());
-            String playerClass = normalizeClassId(user.getClassId());
-            if (!requiredClass.equals(playerClass)) {
-                throw new GameException(
-                        "ITEM_CLASS_RESTRICTED",
-                        "This item can only be equipped by class: " + requiredClass
-                );
-            }
-        }
-
-        UserItemEntity userItem = userItemRepository.findByUserIdAndItemId(userId, master.getItemId())
-                .orElseThrow(() -> new GameException("ITEM_NOT_FOUND", "Item not found: " + master.getItemId()));
-        if (userItem.getQuantity() <= 0) {
-            throw new GameException("INSUFFICIENT_ITEM_QUANTITY", "Not enough item quantity");
-        }
-
-        setSlotItem(equipment, normalizedSlot, master.getItemId());
+        String equippedItemId = validateEquipItemForSlot(user, normalizedSlot, itemId);
+        setSlotItem(equipment, normalizedSlot, equippedItemId);
         return userEquipmentRepository.save(equipment);
     }
 
@@ -238,21 +215,21 @@ public class ItemService {
 
     @Transactional
     public UserEquipmentEntity applyEquipmentPreset(long userId, String presetName) {
-        playerService.getUserEntity(userId);
+        UserEntity user = playerService.getUserEntity(userId);
+        String normalizedPresetName = presetName == null ? "" : presetName.trim();
+        if (normalizedPresetName.isEmpty()) {
+            throw new GameException("INVALID_PRESET_NAME", "presetName is required");
+        }
 
-        UserEquipmentPresetEntity preset = userEquipmentPresetRepository.findByUserIdAndPresetName(userId, presetName.trim())
+        UserEquipmentPresetEntity preset = userEquipmentPresetRepository.findByUserIdAndPresetName(userId, normalizedPresetName)
                 .orElseThrow(() -> new GameException("EQUIP_PRESET_NOT_FOUND", "Preset not found: " + presetName));
 
         UserEquipmentEntity equipment = userEquipmentRepository.findById(userId)
                 .orElseGet(() -> userEquipmentRepository.save(new UserEquipmentEntity(userId)));
 
-        validateOwnedOrNull(userId, preset.getWeaponItemId());
-        validateOwnedOrNull(userId, preset.getArmorItemId());
-        validateOwnedOrNull(userId, preset.getAccessoryItemId());
-
-        equipment.setWeaponItemId(preset.getWeaponItemId());
-        equipment.setArmorItemId(preset.getArmorItemId());
-        equipment.setAccessoryItemId(preset.getAccessoryItemId());
+        equipment.setWeaponItemId(validateEquipItemForSlot(user, "weapon", preset.getWeaponItemId()));
+        equipment.setArmorItemId(validateEquipItemForSlot(user, "armor", preset.getArmorItemId()));
+        equipment.setAccessoryItemId(validateEquipItemForSlot(user, "accessory", preset.getAccessoryItemId()));
         return userEquipmentRepository.save(equipment);
     }
 
@@ -303,15 +280,36 @@ public class ItemService {
         }
     }
 
-    private void validateOwnedOrNull(long userId, String itemId) {
+    private String validateEquipItemForSlot(UserEntity user, String slot, String itemId) {
         if (itemId == null || itemId.isBlank()) {
-            return;
+            return null;
         }
-        UserItemEntity item = userItemRepository.findByUserIdAndItemId(userId, itemId)
-                .orElseThrow(() -> new GameException("ITEM_NOT_FOUND", "Item not found: " + itemId));
+        String normalizedItemId = normalizeItemId(itemId);
+
+        ItemMasterEntity master = getItemMasterOrThrow(normalizedItemId);
+        if (!"EQUIPMENT".equalsIgnoreCase(master.getItemType())) {
+            throw new GameException("ITEM_NOT_EQUIPPABLE", "Item is not equippable: " + master.getItemId());
+        }
+        if (master.getEquipSlot() == null || !master.getEquipSlot().equalsIgnoreCase(slot)) {
+            throw new GameException("EQUIP_SLOT_MISMATCH", "Item does not match slot");
+        }
+        if (master.getRequiredClassId() != null && !master.getRequiredClassId().isBlank()) {
+            String requiredClass = normalizeClassId(master.getRequiredClassId());
+            String playerClass = normalizeClassId(user.getClassId());
+            if (!requiredClass.equals(playerClass)) {
+                throw new GameException(
+                        "ITEM_CLASS_RESTRICTED",
+                        "This item can only be equipped by class: " + requiredClass
+                );
+            }
+        }
+
+        UserItemEntity item = userItemRepository.findByUserIdAndItemId(user.getId(), master.getItemId())
+                .orElseThrow(() -> new GameException("ITEM_NOT_FOUND", "Item not found: " + master.getItemId()));
         if (item.getQuantity() <= 0) {
             throw new GameException("INSUFFICIENT_ITEM_QUANTITY", "Not enough item quantity");
         }
+        return master.getItemId();
     }
 
     private ItemMasterEntity getItemMasterOrThrow(String itemId) {

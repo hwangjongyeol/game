@@ -1,5 +1,48 @@
 # 10. 진행 현황
 
+## 2026-02-19
+
+### 완료
+- 아이템 장착 프리셋 서버 검증 정합성 강화
+  - 문제: `POST /api/v1/items/equipment/presets/apply` 경로에서 소유 수량만 검사하고, 슬롯/직업/활성 장비 검증이 빠져 장착 우회 가능성 존재
+  - 조치: `ItemService`에 슬롯 공통 검증 로직(`validateEquipItemForSlot`)을 추가하고 아래 항목을 프리셋 적용에도 동일 적용
+    - 활성 장비 아이템 여부
+    - 슬롯 일치 여부
+    - 직업 제한 일치 여부
+    - 소유/수량 유효성
+  - `updateEquipment`도 동일 공통 검증 로직 사용으로 경로 간 검증 규칙 일치화
+- 테스트 추가
+  - `ItemServiceEquipmentPresetValidationTest` 신규 추가
+  - 케이스:
+    - 직업 제한 위반 시 `ITEM_CLASS_RESTRICTED`
+    - 슬롯 불일치 시 `EQUIP_SLOT_MISMATCH`
+    - 유효한 프리셋은 정상 장착/영속화
+- 문서 동기화
+  - `docs/api/04-items.md`에 프리셋 적용 검증 규칙/에러코드 명시
+- 문서 뷰어를 AutoGame 프로젝트 기준으로 정비
+  - `docs/index.html` 타이틀/헤더를 `AutoGame Docs Viewer` 기준으로 변경
+  - `docs/assets/build-docs-data.py`를 정리해 `docs/` 하위 실제 `*.md`만 수집하고 `docs-data.js`를 재생성하도록 수정
+  - `docs/assets/docs-viewer.js`에서 내부 md 링크(`./x.md`, `../x.md`)를 해시 라우팅으로 열도록 보강
+  - 마크다운 헤딩 앵커(id) 생성 및 이미지 렌더링 지원 추가
+  - `docs/assets/docs-data.js`를 현재 저장소 문서(27개) 기준으로 재생성
+  - 사용법 문서화: `docs/README.md`에 문서 뷰어 생성/갱신 절차 추가
+- 문서 뷰어 UX/렌더링 고도화 (검색 + 코드 하이라이트 + YAML 개선)
+  - 사이드바 검색 UI 추가: 파일명/본문 통합 검색 + 실시간 매칭 문서 수 표시 + Enter 첫 결과 열기
+  - 코드 블록 하이라이트 추가: `json`, `yaml`, `sql`, `bash`, `js/ts` 토큰 컬러링 지원
+  - YAML 문서 렌더링 개선:
+    - `build-docs-data.py`에서 `.yaml/.yml`도 수집하도록 확장
+    - `api/openapi.yaml`을 문서 트리에서 직접 열어 하이라이트된 YAML 코드로 확인 가능
+    - md 내부 상대 링크(`./openapi.yaml`)를 뷰어 내부 문서 이동으로 처리
+  - `docs/assets/docs-data.js` 재생성: 현재 28개 문서(md + yaml 1개)
+- DB 영향
+  - 스키마 변경 없음 (SQL 추가/수정 없음)
+
+### 다음 예정
+- 아이템 강화(`POST /api/v1/items/upgrade`)에 최대 강화 레벨 정책(`item_upgrade_tiers`)을 선택 적용할지 결정
+- 프리셋 저장 시점(`POST /api/v1/items/equipment/presets`)에 사전 검증 옵션(저장 허용 vs 저장 차단) 정책 정의
+- 아이템 API 예외 코드 샘플을 `docs/api/openapi.yaml`에 표준 예시로 확장
+- 문서 뷰어 검색 결과에 문서 미리보기(snippet) 표시 추가 검토
+
 ## 2026-02-17
 
 ### 완료

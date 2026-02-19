@@ -148,6 +148,14 @@
 }
 ```
 
+규칙:
+- 프리셋 적용 시 각 슬롯(weapon/armor/accessory)은 `POST /api/v1/items/equipment`와 동일한 서버 검증을 수행
+- 검증 항목:
+  - 활성 장비 아이템 여부 (`ITEM_NOT_EQUIPPABLE`)
+  - 슬롯 일치 여부 (`EQUIP_SLOT_MISMATCH`)
+  - 직업 제한 일치 여부 (`ITEM_CLASS_RESTRICTED`)
+  - 소유/수량 유효성 (`ITEM_NOT_FOUND`, `INSUFFICIENT_ITEM_QUANTITY`)
+
 장착 해제:
 ```json
 {

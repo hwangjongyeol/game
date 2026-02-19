@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AutoGame Docs Viewer</title>
+  <link rel="stylesheet" href="./assets/docs-viewer.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1>AutoGame Docs</h1>
+        <button id="closeSidebar" class="mobile-only" aria-label="close menu">×</button>
+      </div>
+      <div class="search-box">
+        <input id="docSearch" type="search" placeholder="문서 검색 (파일명/내용)" />
+        <button id="clearSearch" aria-label="clear search">×</button>
+      </div>
+      <div id="searchMeta" class="search-meta"></div>
+      <div class="tree" id="tree"></div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <button id="openSidebar" class="mobile-only">☰</button>
+        <div id="breadcrumb" class="breadcrumb"></div>
+      </header>
+      <article id="docContent" class="doc-content"></article>
+    </main>
+  </div>
+
+  <script src="./assets/docs-data.js"></script>
+  <script src="./assets/docs-viewer.js"></script>
+</body>
+</html>

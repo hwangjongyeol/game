@@ -1,0 +1,257 @@
+:root {
+  --bg: #f4f7f8;
+  --panel: #ffffff;
+  --text: #1f2a30;
+  --muted: #62717a;
+  --line: #d8e0e4;
+  --accent: #0b6b7a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+  color: var(--text);
+  background: linear-gradient(160deg, #edf3f5 0%, #f9fbfc 100%);
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  padding: 12px;
+  overflow: auto;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.sidebar-header h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.search-box {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin: 8px 0 8px;
+}
+
+.search-box input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.search-box button {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  width: 32px;
+  cursor: pointer;
+}
+
+.search-meta {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.tree details {
+  margin-left: 8px;
+}
+
+.tree summary {
+  cursor: pointer;
+  color: var(--muted);
+  padding: 4px 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.tree button.file {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 5px 0;
+  width: 100%;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.tree button.file.active {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topbar {
+  border-bottom: 1px solid var(--line);
+  background: #fcfeff;
+  padding: 10px 14px;
+}
+
+.breadcrumb {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.doc-content {
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.doc-content h1,
+.doc-content h2,
+.doc-content h3,
+.doc-content h4 {
+  line-height: 1.25;
+}
+
+.doc-content pre {
+  background: #15242c;
+  color: #e9f3f7;
+  padding: 12px;
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.doc-content code {
+  background: #eaf1f4;
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.doc-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.doc-content pre code .tok-kw {
+  color: #7bc7ff;
+  font-weight: 600;
+}
+
+.doc-content pre code .tok-key {
+  color: #9ad0ff;
+  font-weight: 600;
+}
+
+.doc-content pre code .tok-str {
+  color: #d6f5a3;
+}
+
+.doc-content pre code .tok-num {
+  color: #ffc98b;
+}
+
+.doc-content pre code .tok-cmt {
+  color: #8ea5b5;
+  font-style: italic;
+}
+
+.doc-content pre code .tok-lit {
+  color: #f6b8ff;
+}
+
+.doc-content pre code .tok-var {
+  color: #ffd479;
+}
+
+mark {
+  background: #fff2a8;
+  color: #3e2d00;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.doc-content table {
+  width: 100%;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+
+.doc-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.doc-content th,
+.doc-content td {
+  border: 1px solid var(--line);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: fixed;
+    z-index: 20;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(92vw, 380px);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .mobile-only {
+    display: inline-block;
+    border: 1px solid var(--line);
+    background: #fff;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .topbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .doc-content {
+    padding: 14px;
+  }
+}
