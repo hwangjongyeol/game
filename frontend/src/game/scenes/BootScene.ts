@@ -25,8 +25,8 @@ export class BootScene extends Phaser.Scene {
       this.load.image(this.runtimeBgKey(path), path);
     });
     this.load.spritesheet('sprite-pack', '/sprite-pack-new.png', {
-      frameWidth: 128,
-      frameHeight: 128
+      frameWidth: 64,
+      frameHeight: 64
     });
   }
 
@@ -133,8 +133,8 @@ export class BootScene extends Phaser.Scene {
     ctx.putImageData(imageData, 0, 0);
     this.textures.remove('sprite-pack');
     this.textures.addSpriteSheet('sprite-pack', canvas as unknown as HTMLImageElement, {
-      frameWidth: 128,
-      frameHeight: 128
+      frameWidth: 64,
+      frameHeight: 64
     });
     this.textures.get('sprite-pack')?.setFilter(Phaser.Textures.FilterMode.NEAREST);
   }

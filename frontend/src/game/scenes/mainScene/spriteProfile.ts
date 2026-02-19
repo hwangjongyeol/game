@@ -10,7 +10,7 @@ type SpriteRenderProfile = {
   deathFrames?: Array<FramePoint | { c?: number; r?: number }>;
 };
 
-const FRAME_SIZE = 128;
+const FRAME_SIZE = 64;
 const BLOCK_SIZE = 3;
 const BATTLE_ANIM_FPS = 6;
 const DEATH_ANIM_FPS = 2;

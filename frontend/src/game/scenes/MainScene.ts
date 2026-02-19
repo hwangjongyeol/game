@@ -44,7 +44,9 @@ type ResolvedRenderProfile = {
   block: SpriteBlock;
   battleFrames: FramePoint[];
   deathFrames: FramePoint[];
+  source: 'db' | 'emergency';
 };
+type RenderProfilePayload = Omit<ResolvedRenderProfile, 'source'>;
 
 const UNIT_SPRITE_Y_SHIFT = 0;
 const HERO_SPRITE_Y = -58 + UNIT_SPRITE_Y_SHIFT;
@@ -54,10 +56,17 @@ const MONSTER_SUPPORT1_Y = -78 + UNIT_SPRITE_Y_SHIFT;
 const MONSTER_SUPPORT2_Y = -76 + UNIT_SPRITE_Y_SHIFT;
 const MONSTER_SUPPORT3_Y = -50 + UNIT_SPRITE_Y_SHIFT;
 const MONSTER_SUPPORT4_Y = -48 + UNIT_SPRITE_Y_SHIFT;
+const MONSTER_BATTLE_ANIMATION_ENABLED = false;
+const HERO_DISPLAY_SIZE = { width: 96, height: 112 };
+const COMPANION_DISPLAY_SIZE = { width: 98, height: 116 };
+const MONSTER_MAIN_DISPLAY_SIZE = { width: 136, height: 160 };
+const MONSTER_SUPPORT_DISPLAY_SIZE = { width: 96, height: 112 };
+const MONSTER_SUPPORT_SMALL_DISPLAY_SIZE = { width: 80, height: 96 };
 const EMERGENCY_PROFILE = {
   block: { col: 0, row: 0 },
   battleFrames: [[0, 0]] as FramePoint[],
-  deathFrames: [[0, 0]] as FramePoint[]
+  deathFrames: [[0, 0]] as FramePoint[],
+  source: 'emergency' as const
 };
 
 export class MainScene extends Phaser.Scene {
@@ -765,16 +774,8 @@ export class MainScene extends Phaser.Scene {
       `monster:${this.monsterDef.id}`
     );
     this.logRenderProfile(`monster:${this.monsterDef.id}`, monsterProfile);
-    const monsterAnimations = ensureProfileAnimations(
-      this,
-      `monster-${this.monsterDef.id}`,
-      monsterProfile.block,
-      monsterProfile.battleFrames,
-      monsterProfile.deathFrames,
-      getSheetColumns(this)
-    );
-    this.monsterBattleAnimKey = monsterAnimations.battleKey;
-    this.monsterDeathAnimKey = monsterAnimations.deathKey;
+    this.monsterBattleAnimKey = '';
+    this.monsterDeathAnimKey = '';
     this.monsterBaseFrame = frameIndexFromBlock(monsterProfile.block, 0, 0, getSheetColumns(this));
     this.monsterSprite.setTexture('sprite-pack', this.monsterBaseFrame);
     this.playMonsterBattleAnimation();
@@ -844,8 +845,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   private resolveRequiredProfile(raw: string | null | undefined, target: string): ResolvedRenderProfile {
-    const parsed = resolveProfileFromJson(raw, getSheetColumns(this));
-    if (parsed && this.isProfileInTextureRange(parsed)) return parsed;
+    const sheetColumns = getSheetColumns(this);
+    const parsed = resolveProfileFromJson(raw, sheetColumns);
+    if (parsed && this.isProfileInTextureRange(parsed)) return { ...parsed, source: 'db' };
     if (!this.missingRenderProfileLogged.has(target)) {
       this.missingRenderProfileLogged.add(target);
       this.pushLog(`render_profile_json 누락/오류: ${target}`, true);
@@ -853,11 +855,11 @@ export class MainScene extends Phaser.Scene {
     return EMERGENCY_PROFILE;
   }
 
-  private isProfileInTextureRange(profile: ResolvedRenderProfile): boolean {
+  private isProfileInTextureRange(profile: RenderProfilePayload): boolean {
     const texture = this.textures.get('sprite-pack');
     const source = texture?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
-    const cols = Math.max(1, Math.floor((source?.width ?? 1024) / 128));
-    const rows = Math.max(1, Math.floor((source?.height ?? 1536) / 128));
+    const cols = Math.max(1, Math.floor((source?.width ?? 1024) / 64));
+    const rows = Math.max(1, Math.floor((source?.height ?? 1536) / 64));
     const frames = [...profile.battleFrames, ...profile.deathFrames];
     if (frames.length === 0) return false;
     return frames.every(([c, r]) => {
@@ -869,6 +871,7 @@ export class MainScene extends Phaser.Scene {
 
   private logRenderProfile(target: string, profile: ResolvedRenderProfile): void {
     console.log(`[render-profile] ${target}`, {
+      source: profile.source,
       sheetColumns: getSheetColumns(this),
       block: profile.block,
       battleFrames: profile.battleFrames,
@@ -891,7 +894,7 @@ export class MainScene extends Phaser.Scene {
     this.heroDeathAnimKey = heroAnimations.deathKey;
     this.heroSprite = this.add
       .sprite(0, HERO_SPRITE_Y, 'sprite-pack', frameIndexFromBlock(heroProfile.block, 0, 0, getSheetColumns(this)))
-      .setDisplaySize(124, 146)
+      .setDisplaySize(HERO_DISPLAY_SIZE.width, HERO_DISPLAY_SIZE.height)
       .setOrigin(0.5, 0.5);
     return this.add.container(x, y, [this.heroSprite]);
   }
@@ -917,7 +920,7 @@ export class MainScene extends Phaser.Scene {
       const col = idx % 3;
       const x = baseX + (col - 1) * spacingX + row * 30;
       const y = baseY + row * spacingY;
-      const profile = this.resolveRequiredProfile(companion.renderProfileJson, `companion:${companion.id}`);
+      const profile = this.resolveRequiredProfile(companion.renderProfileJson, `companion:${companion.companionId}`);
       this.logRenderProfile(`companion:${companion.companionId}`, profile);
       const anim = ensureProfileAnimations(
         this,
@@ -930,7 +933,7 @@ export class MainScene extends Phaser.Scene {
 
       const sprite = this.add
         .sprite(0, COMPANION_SPRITE_Y, 'sprite-pack', frameIndexFromBlock(profile.block, 0, 0, getSheetColumns(this)))
-        .setDisplaySize(132, 156)
+        .setDisplaySize(COMPANION_DISPLAY_SIZE.width, COMPANION_DISPLAY_SIZE.height)
         .setOrigin(0.5, 0.5)
         .setAlpha(0.95);
       const body = this.add.container(x, y, [sprite]);
@@ -968,33 +971,37 @@ export class MainScene extends Phaser.Scene {
     const baseFrame = frameIndexFromBlock(EMERGENCY_PROFILE.block, 0, 0, getSheetColumns(this));
     this.monsterSprite = this.add
       .sprite(0, MONSTER_MAIN_SPRITE_Y, 'sprite-pack', baseFrame)
-      .setDisplaySize(180, 212)
+      .setDisplaySize(MONSTER_MAIN_DISPLAY_SIZE.width, MONSTER_MAIN_DISPLAY_SIZE.height)
       .setOrigin(0.5, 0.5);
     const support1 = this.add
       .sprite(-118, MONSTER_SUPPORT1_Y, 'sprite-pack', baseFrame)
-      .setDisplaySize(124, 148)
+      .setDisplaySize(MONSTER_SUPPORT_DISPLAY_SIZE.width, MONSTER_SUPPORT_DISPLAY_SIZE.height)
       .setAlpha(0.82);
     const support2 = this.add
       .sprite(116, MONSTER_SUPPORT2_Y, 'sprite-pack', baseFrame)
-      .setDisplaySize(124, 148)
+      .setDisplaySize(MONSTER_SUPPORT_DISPLAY_SIZE.width, MONSTER_SUPPORT_DISPLAY_SIZE.height)
       .setAlpha(0.82);
     const support3 = this.add
       .sprite(-184, MONSTER_SUPPORT3_Y, 'sprite-pack', baseFrame)
-      .setDisplaySize(104, 126)
+      .setDisplaySize(MONSTER_SUPPORT_SMALL_DISPLAY_SIZE.width, MONSTER_SUPPORT_SMALL_DISPLAY_SIZE.height)
       .setAlpha(0.7);
     const support4 = this.add
       .sprite(184, MONSTER_SUPPORT4_Y, 'sprite-pack', baseFrame)
-      .setDisplaySize(104, 126)
+      .setDisplaySize(MONSTER_SUPPORT_SMALL_DISPLAY_SIZE.width, MONSTER_SUPPORT_SMALL_DISPLAY_SIZE.height)
       .setAlpha(0.7);
     this.monsterSupportSprites = [support1, support2, support3, support4];
     return this.add.container(x, y, [support3, support1, this.monsterSprite, support2, support4]);
   }
 
   private playMonsterBattleAnimation(): void {
-    if (!this.monsterBattleAnimKey) return;
-    this.playLoopAnimationIfNeeded(this.monsterSprite, this.monsterBattleAnimKey);
     if (this.monsterBaseFrame >= 0) {
+      this.monsterSprite.anims.stop();
+      this.monsterSprite.setFrame(this.monsterBaseFrame);
       this.monsterSupportSprites.forEach((sprite) => sprite.setFrame(this.monsterBaseFrame));
+      return;
+    }
+    if (MONSTER_BATTLE_ANIMATION_ENABLED && this.monsterBattleAnimKey) {
+      this.playLoopAnimationIfNeeded(this.monsterSprite, this.monsterBattleAnimKey);
     }
   }
 
@@ -1006,8 +1013,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   private playMonsterDeathAnimation(): void {
-    if (!this.monsterDeathAnimKey) return;
-    this.monsterSprite.play(this.monsterDeathAnimKey, true);
+    if (this.monsterBaseFrame < 0) return;
+    this.monsterSprite.anims.stop();
+    this.monsterSprite.setFrame(this.monsterBaseFrame);
   }
 
   private playStrikeTween(target: Phaser.GameObjects.Container, baseX: number, shiftX: number): void {

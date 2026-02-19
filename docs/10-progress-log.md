@@ -49,6 +49,14 @@
   - 기본 활성 프로필 `local`, 운영 프로필 `prd`는 `SPRING_PROFILES_ACTIVE=prd`와 `DB_URL/DB_USERNAME/DB_PASSWORD` 환경변수로 구동
   - 글로벌 예외 처리기(`GlobalExceptionHandler`)에 서버 에러 로깅 추가: 500 응답 시 `log.error`로 URI+stacktrace를 기록하도록 보강
   - `GET /api/v1/waves/runtime/{dungeonId}` 500(NPE) 수정: `WaveRuntimeService`에서 `render_profile_json`이 `null`인 몬스터도 처리되도록 `Collectors.toMap` 제거 및 null-safe 맵 수집으로 교체
+  - 전투 스프라이트 표시 크기 재조정: 주인공/동료/몬스터 `setDisplaySize`를 약 50% 축소하여 2배 확대처럼 보이던 현상 완화
+  - `docs/image/img_3.png` 기준 캐릭터 과소 표시 보정: 표시 크기를 중간 배율(주인공 96x112, 동료 98x116, 몬스터 136x160)로 재조정
+  - `docs/image/img_4.png` 기준 캐릭터 절단/몬스터 미노출 보정: `sprite-pack-new.png(1024x1536)`의 실제 프레임 단위를 `64x64`로 반영해 `BootScene` 스프라이트시트 로딩/재생성 및 좌표 유효성 검사 분모를 64로 통일
+  - 좌표 튜닝 임시 모드 추가: DB `render_profile_json` 대신 `frontend/public/render-profiles-test.json` 좌표를 우선 적용하도록 `BootScene`/`MainScene` 경로 보강(키 미존재 시 DB fallback)
+  - 테스트 좌표 와일드카드 지원 추가: `class:*`, `companion:*`, `monster:*`, `*` 키를 사용해 ID가 달라도 기본 좌표를 강제 적용하도록 보강(빈 화면 방지)
+  - 몬스터 상하 흔들림 체감 제거: 전투 중 몬스터 배틀 애니메이션 루프를 중지하고 base frame 고정 렌더링으로 변경
+  - 몬스터 애니메이션 완전 차단: 스폰 시 몬스터 battle/death 애니메이션 키 생성/재생을 제거하고 단일 base frame만 사용하도록 고정
+  - 좌표 소스 원복: 테스트 JSON(`render-profiles-test.json`) 우선 모드를 제거하고 다시 DB `render_profile_json`만 사용하도록 복구
 - 웨이브 시작 화면 상승 연출 제거
   - 전투 씬 웨이브 시작 시 호출되던 배너 이벤트(`showWaveBanner`)를 비활성화하여 화면이 올라가는 체감 제거
   - 웨이브 시작/재시작 시 전투 스프라이트 애니메이션 강제 재생을 방지해 점프성 화면 튐 완화
